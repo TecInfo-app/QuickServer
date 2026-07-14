@@ -1,0 +1,146 @@
+@import "tailwindcss";
+
+@theme {
+  --color-surface: #f8f9fb;
+  --color-surface-dim: #d9dadc;
+  --color-surface-bright: #f8f9fb;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f3f4f6;
+  --color-surface-container: #edeef0;
+  --color-surface-container-high: #e7e8ea;
+  --color-surface-container-highest: #e1e2e4;
+  --color-on-surface: #191c1e;
+  --color-on-surface-variant: #5a413d;
+  --color-inverse-surface: #2e3132;
+  --color-inverse-on-surface: #f0f1f3;
+  --color-outline: #8e706b;
+  --color-outline-variant: #e2beb9;
+  --color-surface-tint: #b4271d;
+  --color-primary: #b1241a;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #d43e30;
+  --color-on-primary-container: #fffbff;
+  --color-inverse-primary: #ffb4a9;
+  --color-secondary: #006397;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #5cb8fd;
+  --color-on-secondary-container: #00476e;
+  --color-tertiary: #4c5e71;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #64768a;
+  --color-on-tertiary-container: #fdfcff;
+  --color-error: #ba1a1a;
+  --color-on-error: #ffffff;
+  --color-error-container: #ffdad6;
+  --color-on-error-container: #93000a;
+  --color-primary-fixed: #ffdad5;
+  --color-primary-fixed-dim: #ffb4a9;
+  --color-on-primary-fixed: #410000;
+  --color-on-primary-fixed-variant: #910807;
+  --color-secondary-fixed: #cce5ff;
+  --color-secondary-fixed-dim: #92ccff;
+  --color-on-secondary-fixed: #001d31;
+  --color-on-secondary-fixed-variant: #004b73;
+  --color-tertiary-fixed: #d1e4fb;
+  --color-tertiary-fixed-dim: #b5c8df;
+  --color-on-tertiary-fixed: #091d2e;
+  --color-on-tertiary-fixed-variant: #36485b;
+  --color-background: #f8f9fb;
+  --color-on-background: #191c1e;
+  --color-surface-variant: #e1e2e4;
+  --color-success: #10b981;
+  --color-info-indigo: #6366f1;
+  --color-warning: #eab308;
+  --color-destructive: #ef4444;
+  --color-surface-alt: #f9fafb;
+  --color-brand-primary: #e74c3c;
+  --color-brand-secondary: #3498db;
+
+  --font-inter: "Inter", sans-serif;
+  
+  /* Font Families */
+  --font-display: "Inter", sans-serif;
+  --font-headline-lg: "Inter", sans-serif;
+  --font-headline-lg-mobile: "Inter", sans-serif;
+  --font-headline-md: "Inter", sans-serif;
+  --font-body-lg: "Inter", sans-serif;
+  --font-caption: "Inter", sans-serif;
+  --font-stat-value: "Inter", sans-serif;
+  
+  /* Radii */
+  --radius-sm: 0.25rem;
+  --radius-DEFAULT: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-full: 9999px;
+
+  /* Spacing */
+  --spacing-unit: 4px;
+  --spacing-gutter-sm: 12px;
+  --spacing-gutter-md: 16px;
+  --spacing-gutter-lg: 24px;
+  --spacing-margin-page: 32px;
+  --spacing-margin-mobile: 16px;
+  --spacing-container-max: 1024px;
+}
+
+@layer utilities {
+  .text-display {
+    font-size: 48px;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+  .text-headline-lg {
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 32px;
+  }
+  .text-headline-lg-mobile {
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 28px;
+  }
+  .text-headline-md {
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 28px;
+  }
+  .text-body-lg {
+    font-size: 16px;
+    font-weight: 400;
+    line-height: 24px;
+  }
+  .text-caption {
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 20px;
+  }
+  .text-stat-value {
+    font-size: 30px;
+    font-weight: 800;
+    line-height: 36px;
+    letter-spacing: -0.01em;
+  }
+  .card-shadow {
+    box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.1), 0 6px 12px -3px rgba(0, 0, 0, 0.05);
+  }
+  .login-card {
+    box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.1), 0 6px 10px -5px rgba(0, 0, 0, 0.05);
+  }
+  .ambient-card {
+    box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.1), 0 6px 12px -2px rgba(0, 0, 0, 0.05);
+  }
+  .receipt-dashed {
+    border-top: 2px dashed var(--color-outline-variant);
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+

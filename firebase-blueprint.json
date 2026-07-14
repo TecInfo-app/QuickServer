@@ -1,0 +1,108 @@
+{
+  "entities": {
+    "Store": {
+      "title": "Store",
+      "description": "Represents a restaurant or store branch in the system.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier of the store" },
+        "name": { "type": "string", "description": "Name of the store" },
+        "ownerName": { "type": "string", "description": "Name of the owner" },
+        "email": { "type": "string", "description": "Email used for logging in" },
+        "password": { "type": "string", "description": "Hashed or plain password" },
+        "status": { "type": "string", "enum": ["ACTIVE", "SUSPENDED"], "description": "Status of the store subscription" },
+        "createdAt": { "type": "string", "description": "ISO timestamp when the store was created" }
+      },
+      "required": ["id", "name", "email", "password", "status", "createdAt"]
+    },
+    "User": {
+      "title": "User",
+      "description": "An employee, cashier, or manager of a specific store.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number", "description": "Unique user numeric ID" },
+        "name": { "type": "string", "description": "Full name of the user" },
+        "password": { "type": "string", "description": "PIN code or password to authenticate" },
+        "role": { "type": "string", "description": "The system role (Gerente, Vendedor, etc.)" },
+        "meta": { "type": "string", "description": "Extra metadata about the user" },
+        "active": { "type": "boolean", "description": "Whether the user account is active" }
+      },
+      "required": ["id", "name", "password", "role", "active"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "An item in the menu or inventory.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number", "description": "Unique product numeric ID" },
+        "name": { "type": "string", "description": "Name of the product" },
+        "category": { "type": "string", "description": "Category name" },
+        "stock": { "type": "number", "description": "Current quantity in stock" },
+        "cost": { "type": "number", "description": "Unit cost price" },
+        "price": { "type": "number", "description": "Unit selling price" },
+        "isLow": { "type": "boolean", "description": "True if stock is below safe threshold" },
+        "isCombo": { "type": "boolean", "description": "True if item is a combo" },
+        "minComplements": { "type": "number" },
+        "maxComplements": { "type": "number" },
+        "comboGroupCode": { "type": "string" },
+        "parentGroupCode": { "type": "string" },
+        "pdvCode": { "type": "string" },
+        "isQuickTouch": { "type": "boolean" },
+        "image": { "type": "string" }
+      },
+      "required": ["id", "name", "category", "stock", "cost", "price", "isLow"]
+    },
+    "Table": {
+      "title": "Table",
+      "description": "A dining table or command tracking open consumption.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "number", "description": "Table or command number" },
+        "status": { "type": "string", "enum": ["ACTIVE", "CLOSED"], "description": "Mesa status" },
+        "elapsed": { "type": "string", "description": "Time elapsed or closure timestamp" },
+        "server": { "type": "string", "description": "Name of the server handling the table" },
+        "paidOnline": { "type": "boolean" },
+        "paymentMethod": { "type": "string" }
+      },
+      "required": ["id", "status", "elapsed", "server"]
+    },
+    "Transaction": {
+      "title": "Transaction",
+      "description": "A completed transaction / checkout receipt.",
+      "type": "object",
+      "properties": {
+        "orderId": { "type": "string", "description": "Unique order receipt reference" },
+        "caixaId": { "type": "number", "description": "Associated register/caixa session ID" },
+        "elapsed": { "type": "string", "description": "Timestamp of payment" },
+        "itemsCount": { "type": "number", "description": "Total number of items purchased" },
+        "total": { "type": "number", "description": "Total purchase value" },
+        "method": { "type": "string", "enum": ["Dinheiro", "Cartão", "Pix"] },
+        "cost": { "type": "number", "description": "Total cost of goods sold" },
+        "time": { "type": "string" }
+      },
+      "required": ["orderId", "elapsed", "itemsCount", "total", "method", "cost"]
+    }
+  },
+  "firestore": {
+    "stores": {
+      "schema": { "$ref": "#/entities/Store" },
+      "description": "Central directory of all stores/tenants."
+    },
+    "stores/{storeId}/users": {
+      "schema": { "$ref": "#/entities/User" },
+      "description": "List of employees for a specific store."
+    },
+    "stores/{storeId}/inventory": {
+      "schema": { "$ref": "#/entities/Product" },
+      "description": "Inventory menu for a specific store."
+    },
+    "stores/{storeId}/tables": {
+      "schema": { "$ref": "#/entities/Table" },
+      "description": "Tables and live consumption for a specific store."
+    },
+    "stores/{storeId}/transactions": {
+      "schema": { "$ref": "#/entities/Transaction" },
+      "description": "Sales history and receipts for a specific store."
+    }
+  }
+}

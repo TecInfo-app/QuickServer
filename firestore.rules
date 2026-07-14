@@ -1,0 +1,34 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default-deny catch-all rule
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Stores collection
+    match /stores/{storeId} {
+      allow read, write: if true;
+
+      // Users sub-collection
+      match /users/{userId} {
+        allow read, write: if true;
+      }
+
+      // Inventory sub-collection
+      match /inventory/{productId} {
+        allow read, write: if true;
+      }
+
+      // Tables sub-collection
+      match /tables/{tableId} {
+        allow read, write: if true;
+      }
+
+      // Transactions sub-collection
+      match /transactions/{transactionId} {
+        allow read, write: if true;
+      }
+    }
+  }
+}
