@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Lock, Eye, LogIn, Info } from 'lucide-react';
-import { getStoredUsers, setCurrentUser, getStoredStores } from '../utils/db';
+import { User, Lock, Eye, LogIn, Info, Loader2 } from 'lucide-react';
+import { getStoredUsers, setCurrentUser, getStoredStores, getAuthEmail, registerUserInFirebaseAuth } from '../utils/db';
+import { auth } from '../utils/firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
 import AlertModal from '../components/ui/AlertModal';
 
 export default function Login() {
@@ -11,13 +13,14 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   const triggerAlert = (msg: string) => {
     setAlertMessage(msg);
     setIsAlertModalOpen(true);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimUser = username.trim();
     const trimPass = password;
@@ -42,65 +45,112 @@ export default function Login() {
       return;
     }
 
-    // 2. Client Store Master Login Check (registered stores)
-    const stores = getStoredStores();
-    const foundStore = stores.find(
-      s => s.email.toLowerCase() === trimUser.toLowerCase() && s.password === trimPass
-    );
+    setIsLoggingIn(true);
+    try {
+      // Get the correct Firebase Auth email mapping for this login attempt
+      const activeStoreId = localStorage.getItem('active_store_id');
+      const authEmail = getAuthEmail(trimUser, activeStoreId);
 
-    if (foundStore) {
-      if (foundStore.status === 'SUSPENDED') {
-        triggerAlert('Seu estabelecimento está suspenso no painel central. Por favor, regularize sua assinatura.');
-        return;
+      // Try logging in using Firebase Authentication!
+      let authUserCredential = null;
+      try {
+        authUserCredential = await signInWithEmailAndPassword(auth, authEmail, trimPass);
+        console.log("Firebase Auth login successful:", authUserCredential.user.email);
+      } catch (authError: any) {
+        console.warn("Firebase Auth login failed, trying fallback to local/Firestore check...", authError);
       }
-      
-      // Select active tenant context
-      localStorage.setItem('active_store_id', foundStore.id);
-      
-      // Seed default admin in users of that store if empty
-      const defaultStoreAdmin = {
-        id: 100,
-        name: foundStore.ownerName,
-        password: foundStore.password,
-        role: 'Gerente',
-        meta: 'Proprietário',
-        active: true,
-        permissions: ['/dashboard', '/tables', '/inventory', '/kiosk', '/reports', '/admin']
-      };
 
-      setCurrentUser(defaultStoreAdmin);
-      navigate('/dashboard');
-      return;
-    }
+      // 2. Client Store Master Login Check (registered stores)
+      const stores = getStoredStores();
+      const foundStore = stores.find(
+        s => s.email.toLowerCase() === trimUser.toLowerCase() && s.password === trimPass
+      );
 
-    // 3. Store Employee Login Check (prefixed by active store)
-    const activeStoreId = localStorage.getItem('active_store_id');
-    if (activeStoreId) {
-      const activeStore = getStoredStores().find(s => s.id === activeStoreId);
-      if (activeStore && activeStore.status === 'SUSPENDED') {
-        triggerAlert('Seu estabelecimento correspondente está suspenso no painel central. Por favor, regularize sua assinatura com o Administrador.');
-        return;
-      }
-    }
+      if (foundStore) {
+        if (foundStore.status === 'SUSPENDED') {
+          triggerAlert('Seu estabelecimento está suspenso no painel central. Por favor, regularize sua assinatura.');
+          return;
+        }
+        
+        // Select active tenant context
+        localStorage.setItem('active_store_id', foundStore.id);
+        
+        // Seed default admin in users of that store if empty
+        const defaultStoreAdmin = {
+          id: 100,
+          name: foundStore.ownerName,
+          password: foundStore.password,
+          role: 'Gerente',
+          meta: 'Proprietário',
+          active: true,
+          permissions: ['/dashboard', '/tables', '/inventory', '/kiosk', '/reports', '/admin']
+        };
 
-    const employees = getStoredUsers();
-    const foundEmployee = employees.find(
-      u => u.name.toLowerCase() === trimUser.toLowerCase() && u.password === trimPass
-    );
+        // If the Firebase Auth login was not completed, auto-register this account on the fly!
+        if (!authUserCredential) {
+          await registerUserInFirebaseAuth(foundStore.email, foundStore.password, foundStore.id);
+          await registerUserInFirebaseAuth(foundStore.ownerName, foundStore.password, foundStore.id);
+          // Try to sign in again after auto-registration
+          try {
+            await signInWithEmailAndPassword(auth, authEmail, trimPass);
+          } catch (e) {
+            console.error("Post-registration login failed:", e);
+          }
+        }
 
-    if (foundEmployee) {
-      if (!foundEmployee.active) {
-        triggerAlert('Seu cadastro de funcionário está desativado no momento.');
-        return;
-      }
-      setCurrentUser(foundEmployee);
-      if (foundEmployee.role === 'Vendedor') {
-        navigate('/tables');
-      } else {
+        setCurrentUser(defaultStoreAdmin);
         navigate('/dashboard');
+        return;
       }
-    } else {
+
+      // 3. Store Employee Login Check (prefixed by active store)
+      const currentActiveStoreId = localStorage.getItem('active_store_id');
+      if (currentActiveStoreId) {
+        const activeStore = getStoredStores().find(s => s.id === currentActiveStoreId);
+        if (activeStore && activeStore.status === 'SUSPENDED') {
+          triggerAlert('Seu estabelecimento correspondente está suspenso no painel central. Por favor, regularize sua assinatura com o Administrador.');
+          return;
+        }
+      }
+
+      const employees = getStoredUsers();
+      const foundEmployee = employees.find(
+        u => u.name.toLowerCase() === trimUser.toLowerCase() && u.password === trimPass
+      );
+
+      if (foundEmployee) {
+        if (!foundEmployee.active) {
+          triggerAlert('Seu cadastro de funcionário está desativado no momento.');
+          return;
+        }
+
+        // If the Firebase Auth login was not completed, auto-register this account on the fly!
+        if (!authUserCredential && currentActiveStoreId) {
+          await registerUserInFirebaseAuth(foundEmployee.name, foundEmployee.password!, currentActiveStoreId);
+          // Try to sign in again after auto-registration
+          try {
+            await signInWithEmailAndPassword(auth, authEmail, trimPass);
+          } catch (e) {
+            console.error("Post-registration login failed for employee:", e);
+          }
+        }
+
+        setCurrentUser(foundEmployee);
+        if (foundEmployee.role === 'Vendedor') {
+          navigate('/tables');
+        } else {
+          navigate('/dashboard');
+        }
+        return;
+      }
+
+      // If both Firebase Auth and our database checks failed, show error
       triggerAlert('Credenciais incorretas de Usuário ou Senha. Para o Painel Central use: admin / admin. Para o cliente de teste use: master / 1234');
+    } catch (e: any) {
+      console.error("Login processing error:", e);
+      triggerAlert(`Ocorreu um erro ao processar o login: ${e.message || e}`);
+    } finally {
+      setIsLoggingIn(false);
     }
   };
 
@@ -197,10 +247,20 @@ export default function Login() {
             <div className="pt-2">
               <button
                 type="submit"
-                className="w-full py-4 bg-brand-primary text-on-primary text-headline-md rounded-[16px] flex items-center justify-center gap-2 shadow-lg hover:brightness-95 active:scale-95 transition-all"
+                disabled={isLoggingIn}
+                className="w-full py-4 bg-brand-primary text-on-primary text-headline-md rounded-[16px] flex items-center justify-center gap-2 shadow-lg hover:brightness-95 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <span>Entrar</span>
-                <LogIn size={20} />
+                {isLoggingIn ? (
+                  <>
+                    <Loader2 className="animate-spin" size={20} />
+                    <span>Autenticando...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Entrar</span>
+                    <LogIn size={20} />
+                  </>
+                )}
               </button>
             </div>
           </form>

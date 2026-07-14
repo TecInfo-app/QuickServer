@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Building2, Users, MonitorSmartphone, Shield, CheckCircle, AlertTriangle, Key, Trash2, 
-  Plus, Search, HelpCircle, ArrowLeft, RefreshCw, LogIn, ExternalLink, ShieldAlert, BadgeInfo 
+  Plus, Search, HelpCircle, ArrowLeft, RefreshCw, LogIn, ExternalLink, ShieldAlert, BadgeInfo, Copy 
 } from 'lucide-react';
-import { Store, getStoredStores, saveStores, setCurrentUser, User } from '../utils/db';
+import { Store, getStoredStores, saveStores, setCurrentUser, User, createNewStore, deleteStore } from '../utils/db';
 import AlertModal from '../components/ui/AlertModal';
 
 export default function CentralAdmin() {
@@ -104,28 +104,17 @@ export default function CentralAdmin() {
       createdAt: new Date().toISOString()
     };
 
-    const updated = [createdStore, ...existing];
-    setStores(updated);
-    saveStores(updated);
-    setShowAddModal(false);
+    // Use our beautiful cloud + local seed helper!
+    createNewStore(createdStore);
 
-    // Initialise store users prefix database with a pre-seeded Admin
-    const store_prefixed_users_key = `${storeId}_qsp_users`;
-    const defaultStoreAdmin: User = {
-      id: 100,
-      name: newStore.ownerName,
-      password: newStore.password,
-      role: 'Gerente',
-      meta: 'Proprietário',
-      active: true,
-      permissions: ['/dashboard', '/tables', '/inventory', '/reports', '/admin']
-    };
-    localStorage.setItem(store_prefixed_users_key, JSON.stringify([defaultStoreAdmin]));
+    // Refresh state list
+    setStores(getStoredStores());
+    setShowAddModal(false);
 
     // Success notify
     triggerAlert(
       'Loja Ativada!', 
-      `A loja "${newStore.name}" foi criada com sucesso na central de administração!\n\nEnvie os dados de acesso ao cliente:\n• Usuário Master: ${newStore.email}\n• Senha Master: ${newStore.password}`
+      `A loja "${newStore.name}" foi criada com sucesso na central de administração e salva no Firebase!\n\nEnvie os dados de acesso ao cliente:\n• Usuário Master: ${newStore.email}\n• Senha Master: ${newStore.password}`
     );
 
     // Reset Form
@@ -147,12 +136,13 @@ export default function CentralAdmin() {
   const handleDeleteStore = (store: Store) => {
     triggerAlert(
       'Remover Loja?', 
-      `Atenção: remover a loja "${store.name}" apagará permanentemente seu registro do SaaS central. Deseja continuar?`,
+      `Atenção: remover a loja "${store.name}" apagará permanentemente seu registro do SaaS central e do Firestore. Deseja continuar?`,
       () => {
-        const existing = getStoredStores();
-        const filtered = existing.filter(s => s.id !== store.id);
-        setStores(filtered);
-        saveStores(filtered);
+        // Use our db helper to remove locally & from Firestore
+        deleteStore(store.id);
+
+        // Refresh state list
+        setStores(getStoredStores());
 
         // Wipe all dynamic prefix entries in localStorage for this store
         const storePrefix = `${store.id}_`;
@@ -165,7 +155,7 @@ export default function CentralAdmin() {
         }
         keysToWipe.forEach(k => localStorage.removeItem(k));
 
-        triggerAlert('Sucesso', `Registro da loja "${store.name}" e seus dados locais foram completamente excluídos.`);
+        triggerAlert('Sucesso', `Registro da loja "${store.name}" e seus dados foram completamente excluídos.`);
       }
     );
   };
@@ -246,6 +236,11 @@ export default function CentralAdmin() {
     store.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     store.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const getStoreLink = (storeId: string) => {
+    const baseUrl = window.location.origin + window.location.pathname;
+    return `${baseUrl}#/login?store=${storeId}`;
+  };
 
   return (
     <div className="min-h-screen bg-surface px-margin-mobile md:px-margin-page py-6">
@@ -359,6 +354,7 @@ export default function CentralAdmin() {
                 <tr className="bg-surface-alt/70 border-b border-surface-container text-caption font-bold text-on-surface-variant/80 uppercase tracking-wider">
                   <th className="py-4 px-6">Identificação da Loja</th>
                   <th className="py-4 px-6">Proprietário / Slug ID</th>
+                  <th className="py-4 px-6">Link Único de Loja</th>
                   <th className="py-4 px-6">Credenciais Master</th>
                   <th className="py-4 px-6">Serviços Habilitados</th>
                   <th className="py-4 px-6 text-center">Status</th>
@@ -393,6 +389,24 @@ export default function CentralAdmin() {
                         <p className="font-mono text-[10px] text-primary bg-primary-container/20 px-2 py-0.5 rounded w-fit mt-1 select-all">
                           {store.id}
                         </p>
+                      </div>
+                    </td>
+
+                    <td className="py-5 px-6">
+                      <div className="flex flex-col gap-1 max-w-[220px]">
+                        <span className="font-mono text-[10px] text-secondary bg-secondary-container/10 border border-secondary/20 px-2 py-1 rounded select-all break-all block overflow-hidden text-ellipsis whitespace-nowrap" title={getStoreLink(store.id)}>
+                          {getStoreLink(store.id)}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(getStoreLink(store.id));
+                            triggerAlert('Copiado!', 'Link único da loja copiado para a área de transferência com sucesso!');
+                          }}
+                          className="text-[10px] font-bold text-primary hover:underline flex items-center gap-1 self-start cursor-pointer"
+                        >
+                          <Copy size={12} /> Copiar Link
+                        </button>
                       </div>
                     </td>
 

@@ -1,9 +1,74 @@
 // LocalStorage Helper for QuickServe POS
-import { doc, setDoc, collection, onSnapshot } from 'firebase/firestore';
+import { doc, setDoc, deleteDoc, collection, onSnapshot } from 'firebase/firestore';
+import { initializeApp, deleteApp } from 'firebase/app';
+import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { db, handleFirestoreError, OperationType } from './firebase';
+import firebaseConfig from '../../firebase-applet-config.json';
+
+export function getAuthEmail(username: string, storeId: string | null): string {
+  if (username.includes('@')) {
+    return username;
+  }
+  const activeId = storeId || localStorage.getItem('active_store_id') || 'store_teste_cia';
+  const normalizedUser = username
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '_');
+  return `${normalizedUser}_${activeId}@quickserve.com`;
+}
+
+export async function registerUserInFirebaseAuth(email: string, password: string, storeId: string | null = null) {
+  const authEmail = getAuthEmail(email, storeId);
+  const tempAppName = `temp_reg_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+  try {
+    const tempApp = initializeApp(firebaseConfig, tempAppName);
+    const tempAuth = getAuth(tempApp);
+    await createUserWithEmailAndPassword(tempAuth, authEmail, password);
+    await deleteApp(tempApp);
+    console.log(`Successfully registered ${authEmail} in Firebase Auth.`);
+    return true;
+  } catch (err: any) {
+    if (err.code === 'auth/email-already-in-use') {
+      console.log(`Email ${authEmail} is already registered in Firebase Auth.`);
+      return true;
+    }
+    console.error(`Firebase Auth registration failed for ${authEmail}:`, err);
+    return false;
+  }
+}
 
 let isSyncingFromFirestore = false;
 let hasStartedSync = false;
+
+export function checkAndApplyStoreFromURL() {
+  let storeId: string | null = null;
+  
+  // 1. Parse window.location.search (?store=xyz)
+  const mainParams = new URLSearchParams(window.location.search);
+  storeId = mainParams.get('store');
+  
+  // 2. Parse hash-based parameters (?store=xyz inside hash)
+  if (!storeId) {
+    const hash = window.location.hash;
+    const questionMarkIndex = hash.indexOf('?');
+    if (questionMarkIndex !== -1) {
+      const hashParams = new URLSearchParams(hash.substring(questionMarkIndex));
+      storeId = hashParams.get('store');
+    }
+  }
+
+  if (storeId) {
+    const currentActive = localStorage.getItem('active_store_id');
+    if (currentActive !== storeId) {
+      localStorage.setItem('active_store_id', storeId);
+      // Clean up previous user so they log in with the new store
+      localStorage.removeItem('qsp_current_user');
+      startFirebaseSync(true);
+      window.dispatchEvent(new Event('qsp_database_updated'));
+    }
+  }
+}
 
 export interface User {
   id: number;
@@ -220,6 +285,56 @@ export function saveStores(stores: Store[]) {
   }
 }
 
+export function createNewStore(store: Store) {
+  // Save store globally
+  const stores = getStoredStores();
+  const updated = [store, ...stores];
+  saveStores(updated);
+
+  // Initialize the default admin user
+  const defaultAdmin: User = {
+    id: 100,
+    name: store.ownerName,
+    password: store.password,
+    role: 'Gerente',
+    meta: 'Proprietário',
+    active: true,
+    permissions: ['/dashboard', '/tables', '/inventory', '/reports', '/admin']
+  };
+
+  // Save to LocalStorage
+  localStorage.setItem(`${store.id}_qsp_users`, JSON.stringify([defaultAdmin]));
+
+  // Save directly to Firestore for isolation
+  try {
+    setDoc(doc(db, `stores/${store.id}/users`, '100'), defaultAdmin);
+  } catch (err) {
+    console.error('Error seeding admin user to Firestore:', err);
+  }
+
+  // Register store master and owner user in Firebase Auth in the background
+  try {
+    registerUserInFirebaseAuth(store.email, store.password, store.id);
+    registerUserInFirebaseAuth(store.ownerName, store.password, store.id);
+  } catch (err) {
+    console.error('Error in registerUserInFirebaseAuth:', err);
+  }
+}
+
+export function deleteStore(storeId: string) {
+  const stores = getStoredStores();
+  const filtered = stores.filter(s => s.id !== storeId);
+  localStorage.setItem('qsp_stores', JSON.stringify(filtered));
+  window.dispatchEvent(new Event('qsp_database_updated'));
+
+  // Delete from Firestore
+  try {
+    deleteDoc(doc(db, 'stores', storeId));
+  } catch (err) {
+    console.error('Error deleting store from Firestore:', err);
+  }
+}
+
 export function getActiveStoreConfig(): Store | null {
   const activeId = localStorage.getItem('active_store_id');
   if (!activeId) return null;
@@ -228,6 +343,7 @@ export function getActiveStoreConfig(): Store | null {
 }
 
 export function initDatabase() {
+  checkAndApplyStoreFromURL();
   // Ensure the central stores are initialized
   getStoredStores();
 
@@ -300,13 +416,31 @@ export function getStoredUsers(): User[] {
 
 export function saveUsers(users: User[]) {
   const activeStoreId = localStorage.getItem('active_store_id') || 'store_teste_cia';
+  const oldUsers = [...getStoredUsers()];
   localStorage.setItem(getPrefixedKey('qsp_users'), JSON.stringify(users));
   window.dispatchEvent(new Event('qsp_database_updated'));
 
   if (!isSyncingFromFirestore) {
+    // 1. Delete removed users
+    const newIds = new Set(users.map(u => u.id));
+    oldUsers.forEach(async (u) => {
+      if (!newIds.has(u.id)) {
+        try {
+          await deleteDoc(doc(db, `stores/${activeStoreId}/users`, u.id.toString()));
+        } catch (e) {
+          console.error('Error deleting user from Firestore:', e);
+        }
+      }
+    });
+
+    // 2. Add/Update users
     users.forEach(async (user) => {
       try {
         await setDoc(doc(db, `stores/${activeStoreId}/users`, user.id.toString()), user);
+        // Also register employees in Firebase Auth if they have a password
+        if (user.password) {
+          registerUserInFirebaseAuth(user.name, user.password, activeStoreId);
+        }
       } catch (err) {
         handleFirestoreError(err, OperationType.WRITE, `stores/${activeStoreId}/users/${user.id}`);
       }
@@ -333,10 +467,24 @@ export function getStoredInventory(): Product[] {
 
 export function saveInventory(products: Product[]) {
   const activeStoreId = localStorage.getItem('active_store_id') || 'store_teste_cia';
+  const oldProducts = [...getStoredInventory()];
   localStorage.setItem(getPrefixedKey('qsp_inventory'), JSON.stringify(products));
   window.dispatchEvent(new Event('qsp_database_updated'));
 
   if (!isSyncingFromFirestore) {
+    // 1. Delete removed products
+    const newIds = new Set(products.map(p => p.id));
+    oldProducts.forEach(async (p) => {
+      if (!newIds.has(p.id)) {
+        try {
+          await deleteDoc(doc(db, `stores/${activeStoreId}/inventory`, p.id.toString()));
+        } catch (e) {
+          console.error('Error deleting product from Firestore:', e);
+        }
+      }
+    });
+
+    // 2. Add/Update products
     products.forEach(async (product) => {
       try {
         await setDoc(doc(db, `stores/${activeStoreId}/inventory`, product.id.toString()), product);
@@ -356,10 +504,24 @@ export function getStoredTables(): Table[] {
 
 export function saveTables(tables: Table[]) {
   const activeStoreId = localStorage.getItem('active_store_id') || 'store_teste_cia';
+  const oldTables = [...getStoredTables()];
   localStorage.setItem(getPrefixedKey('qsp_tables'), JSON.stringify(tables));
   window.dispatchEvent(new Event('qsp_database_updated'));
 
   if (!isSyncingFromFirestore) {
+    // 1. Delete removed tables
+    const newIds = new Set(tables.map(t => t.id));
+    oldTables.forEach(async (t) => {
+      if (!newIds.has(t.id)) {
+        try {
+          await deleteDoc(doc(db, `stores/${activeStoreId}/tables`, t.id.toString()));
+        } catch (e) {
+          console.error('Error deleting table from Firestore:', e);
+        }
+      }
+    });
+
+    // 2. Add/Update tables
     tables.forEach(async (table) => {
       try {
         await setDoc(doc(db, `stores/${activeStoreId}/tables`, table.id.toString()), table);
@@ -379,10 +541,25 @@ export function getStoredTransactions(): Transaction[] {
 
 export function saveTransactions(transactions: Transaction[]) {
   const activeStoreId = localStorage.getItem('active_store_id') || 'store_teste_cia';
+  const oldTransactions = [...getStoredTransactions()];
   localStorage.setItem(getPrefixedKey('qsp_transactions'), JSON.stringify(transactions));
   window.dispatchEvent(new Event('qsp_database_updated'));
 
   if (!isSyncingFromFirestore) {
+    // 1. Delete removed transactions
+    const newIds = new Set(transactions.map(t => t.orderId));
+    oldTransactions.forEach(async (t) => {
+      if (!newIds.has(t.orderId)) {
+        const docId = t.orderId.replace('#', '');
+        try {
+          await deleteDoc(doc(db, `stores/${activeStoreId}/transactions`, docId));
+        } catch (e) {
+          console.error('Error deleting transaction from Firestore:', e);
+        }
+      }
+    });
+
+    // 2. Add/Update transactions
     transactions.forEach(async (transaction) => {
       const docId = transaction.orderId.replace('#', '');
       try {
@@ -420,14 +597,26 @@ export function saveAbacatePayConfig(config: AbacatePayConfig) {
   localStorage.setItem(getPrefixedKey('qsp_abacatepay_config'), JSON.stringify(config));
 }
 
-export function startFirebaseSync() {
-  if (hasStartedSync) return;
-  hasStartedSync = true;
+let unsubscribers: (() => void)[] = [];
 
+export function startFirebaseSync(forceReset = false) {
+  if (hasStartedSync && !forceReset) return;
+  
+  // Unsubscribe old listeners
+  unsubscribers.forEach(unsub => {
+    try {
+      unsub();
+    } catch (e) {
+      console.error('Error unsubscribing:', e);
+    }
+  });
+  unsubscribers = [];
+  
+  hasStartedSync = true;
   const activeStoreId = localStorage.getItem('active_store_id') || 'store_teste_cia';
 
   // 1. Sync global stores
-  onSnapshot(collection(db, 'stores'), (snapshot) => {
+  const unsubStores = onSnapshot(collection(db, 'stores'), (snapshot) => {
     if (snapshot.empty) {
       // Seed Firestore with initial stores
       INITIAL_STORES.forEach(async (store) => {
@@ -448,9 +637,10 @@ export function startFirebaseSync() {
   }, (err) => {
     console.error('Firestore sync error for stores:', err);
   });
+  unsubscribers.push(unsubStores);
 
   // 2. Sync users
-  onSnapshot(collection(db, `stores/${activeStoreId}/users`), (snapshot) => {
+  const unsubUsers = onSnapshot(collection(db, `stores/${activeStoreId}/users`), (snapshot) => {
     if (snapshot.empty) {
       // Seed Firestore with initial users
       INITIAL_USERS.forEach(async (user) => {
@@ -469,9 +659,10 @@ export function startFirebaseSync() {
   }, (err) => {
     console.error('Firestore sync error for users:', err);
   });
+  unsubscribers.push(unsubUsers);
 
   // 3. Sync inventory (products)
-  onSnapshot(collection(db, `stores/${activeStoreId}/inventory`), (snapshot) => {
+  const unsubInventory = onSnapshot(collection(db, `stores/${activeStoreId}/inventory`), (snapshot) => {
     if (snapshot.empty) {
       // Seed Firestore with initial products
       INITIAL_PRODUCTS.forEach(async (product) => {
@@ -490,9 +681,10 @@ export function startFirebaseSync() {
   }, (err) => {
     console.error('Firestore sync error for inventory:', err);
   });
+  unsubscribers.push(unsubInventory);
 
   // 4. Sync tables (mesas)
-  onSnapshot(collection(db, `stores/${activeStoreId}/tables`), (snapshot) => {
+  const unsubTables = onSnapshot(collection(db, `stores/${activeStoreId}/tables`), (snapshot) => {
     if (snapshot.empty) {
       // Seed Firestore with initial tables
       INITIAL_TABLES.forEach(async (table) => {
@@ -512,9 +704,10 @@ export function startFirebaseSync() {
   }, (err) => {
     console.error('Firestore sync error for tables:', err);
   });
+  unsubscribers.push(unsubTables);
 
   // 5. Sync transactions
-  onSnapshot(collection(db, `stores/${activeStoreId}/transactions`), (snapshot) => {
+  const unsubTransactions = onSnapshot(collection(db, `stores/${activeStoreId}/transactions`), (snapshot) => {
     if (snapshot.empty) {
       // Seed Firestore with initial transactions
       INITIAL_TRANSACTIONS.forEach(async (tx) => {
@@ -534,4 +727,5 @@ export function startFirebaseSync() {
   }, (err) => {
     console.error('Firestore sync error for transactions:', err);
   });
+  unsubscribers.push(unsubTransactions);
 }

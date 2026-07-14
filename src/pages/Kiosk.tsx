@@ -165,6 +165,30 @@ export default function Kiosk() {
     return () => document.removeEventListener('click', handleUserInteraction);
   }, []);
 
+  // Secure Totem / Lock active session context to Cliente Totem role
+  useEffect(() => {
+    const currentUser = localStorage.getItem('qsp_current_user');
+    if (currentUser) {
+      try {
+        const parsed = JSON.parse(currentUser);
+        if (parsed.role !== 'Cliente') {
+          const kioskUser = {
+            id: 990,
+            name: "Cliente Totem",
+            role: "Cliente",
+            meta: "Autoatendimento",
+            active: true,
+            permissions: ["/kiosk"]
+          };
+          localStorage.setItem('qsp_current_user', JSON.stringify(kioskUser));
+          window.dispatchEvent(new Event('qsp_database_updated'));
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+  }, []);
+
   // Sync Draft Order State for QR code page updates
   const [currentKioskDraft, setCurrentKioskDraft] = useState<DraftKioskOrder | null>(null);
   useEffect(() => {
@@ -1015,7 +1039,7 @@ export default function Kiosk() {
               
               {/* Category card grid when showing "Todos" */}
               {selectedCategory === 'Todos' && !searchTerm && (
-                <div className="space-y-4">
+                <div className="hidden md:block space-y-4">
                   <h3 className="text-xs font-extrabold uppercase tracking-widest text-on-surface-variant/80 flex items-center gap-2">
                     <span>📂 Toque em uma categoria para navegar</span>
                   </h3>
