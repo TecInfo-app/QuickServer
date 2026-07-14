@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/layout/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -12,7 +12,7 @@ import CentralAdmin from './pages/CentralAdmin';
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/kiosk" element={<Kiosk />} />
@@ -28,6 +28,6 @@ export default function App() {
           <Route path="admin" element={<Admin />} />
         </Route>
       </Routes>
-    </BrowserRouter>
+    </HashRouter>
   );
 }
