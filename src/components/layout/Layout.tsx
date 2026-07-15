@@ -1,6 +1,6 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import React, { useEffect, useState } from 'react';
-import { Menu, LogOut, MonitorSmartphone, UtensilsCrossed, PackageSearch, BarChart3, Settings } from 'lucide-react';
+import { Menu, LogOut, MonitorSmartphone, UtensilsCrossed, PackageSearch, BarChart3, Settings, ExternalLink } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { getCurrentUser, getActiveStoreConfig } from '../../utils/db';
@@ -25,7 +25,7 @@ export default function Layout() {
     { name: 'Caixa / Painel', path: '/dashboard', icon: MonitorSmartphone },
     { name: 'Mesas', path: '/tables', icon: UtensilsCrossed },
     { name: 'Estoque', path: '/inventory', icon: PackageSearch },
-    { name: 'Totem Balcão', path: '/kiosk', icon: MonitorSmartphone },
+    { name: 'Totem Balcão', path: '/kiosk', icon: MonitorSmartphone, target: '_blank' },
     { name: 'Relatórios', path: '/reports', icon: BarChart3 },
     { name: 'Administração', path: '/admin', icon: Settings },
   ];
@@ -128,10 +128,13 @@ export default function Layout() {
           {filteredNavItems.map((item) => {
             const isActive = location.pathname.startsWith(item.path);
             const Icon = item.icon;
+            const targetProp = (item as any).target;
             return (
               <Link
                 key={item.path}
                 to={item.path}
+                target={targetProp}
+                rel={targetProp === '_blank' ? 'noopener noreferrer' : undefined}
                 className={cn(
                   "flex items-center gap-4 px-6 py-3 mx-2 rounded-lg transition-all",
                   isActive 
@@ -140,7 +143,10 @@ export default function Layout() {
                 )}
               >
                 <Icon size={20} />
-                <span className="font-body-lg">{item.name}</span>
+                <span className="font-body-lg flex-grow flex items-center justify-between gap-1.5">
+                  <span>{item.name}</span>
+                  {targetProp === '_blank' && <ExternalLink size={14} className="opacity-60" />}
+                </span>
               </Link>
             )
           })}
@@ -163,10 +169,13 @@ export default function Layout() {
         {filteredNavItems.map((item) => {
           const isActive = location.pathname.startsWith(item.path);
           const Icon = item.icon;
+          const targetProp = (item as any).target;
           return (
             <Link
               key={item.path}
               to={item.path}
+              target={targetProp}
+              rel={targetProp === '_blank' ? 'noopener noreferrer' : undefined}
               className={cn(
                 "flex flex-col items-center justify-center p-2 rounded-xl transition-all active:scale-110",
                 isActive 
@@ -175,7 +184,10 @@ export default function Layout() {
               )}
             >
               <Icon size={24} />
-              <span className="text-[10px] uppercase font-bold mt-1">{item.name}</span>
+              <span className="text-[10px] uppercase font-bold mt-1 flex items-center gap-0.5">
+                <span>{item.name}</span>
+                {targetProp === '_blank' && <ExternalLink size={10} className="opacity-60" />}
+              </span>
             </Link>
           );
         })}
