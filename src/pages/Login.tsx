@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Lock, Eye, LogIn, Info, Loader2 } from 'lucide-react';
-import { getStoredUsers, setCurrentUser, getStoredStores, getAuthEmail, registerUserInFirebaseAuth } from '../utils/db';
+import { getStoredUsers, setCurrentUser, getStoredStores, getAuthEmail, registerUserInFirebaseAuth, getAuthPassword } from '../utils/db';
 import { auth } from '../utils/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import AlertModal from '../components/ui/AlertModal';
@@ -54,7 +54,8 @@ export default function Login() {
       // Try logging in using Firebase Authentication!
       let authUserCredential = null;
       try {
-        authUserCredential = await signInWithEmailAndPassword(auth, authEmail, trimPass);
+        const authPassword = getAuthPassword(trimPass);
+        authUserCredential = await signInWithEmailAndPassword(auth, authEmail, authPassword);
         console.log("Firebase Auth login successful:", authUserCredential.user.email);
       } catch (authError: any) {
         console.warn("Firebase Auth login failed, trying fallback to local/Firestore check...", authError);
@@ -92,7 +93,8 @@ export default function Login() {
           await registerUserInFirebaseAuth(foundStore.ownerName, foundStore.password, foundStore.id);
           // Try to sign in again after auto-registration
           try {
-            await signInWithEmailAndPassword(auth, authEmail, trimPass);
+            const authPassword = getAuthPassword(trimPass);
+            await signInWithEmailAndPassword(auth, authEmail, authPassword);
           } catch (e) {
             console.error("Post-registration login failed:", e);
           }
@@ -129,7 +131,8 @@ export default function Login() {
           await registerUserInFirebaseAuth(foundEmployee.name, foundEmployee.password!, currentActiveStoreId);
           // Try to sign in again after auto-registration
           try {
-            await signInWithEmailAndPassword(auth, authEmail, trimPass);
+            const authPassword = getAuthPassword(trimPass);
+            await signInWithEmailAndPassword(auth, authEmail, authPassword);
           } catch (e) {
             console.error("Post-registration login failed for employee:", e);
           }

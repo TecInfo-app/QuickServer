@@ -65,7 +65,7 @@ export default function CentralAdmin() {
   const generatePassword = () => {
     const chars = '1234567890';
     let pass = '';
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 6; i++) {
       pass += chars[Math.floor(Math.random() * chars.length)];
     }
     setNewStore(prev => ({ ...prev, password: pass }));

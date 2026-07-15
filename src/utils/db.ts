@@ -5,6 +5,14 @@ import { getAuth, createUserWithEmailAndPassword } from 'firebase/auth';
 import { db, handleFirestoreError, OperationType } from './firebase';
 import firebaseConfig from '../../firebase-applet-config.json';
 
+export function getAuthPassword(password: string): string {
+  if (!password) return '123456';
+  if (password.length >= 6) {
+    return password;
+  }
+  return password.padEnd(6, '0');
+}
+
 export function getAuthEmail(username: string, storeId: string | null): string {
   if (username.includes('@')) {
     return username;
@@ -20,11 +28,12 @@ export function getAuthEmail(username: string, storeId: string | null): string {
 
 export async function registerUserInFirebaseAuth(email: string, password: string, storeId: string | null = null) {
   const authEmail = getAuthEmail(email, storeId);
+  const authPassword = getAuthPassword(password);
   const tempAppName = `temp_reg_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
   try {
     const tempApp = initializeApp(firebaseConfig, tempAppName);
     const tempAuth = getAuth(tempApp);
-    await createUserWithEmailAndPassword(tempAuth, authEmail, password);
+    await createUserWithEmailAndPassword(tempAuth, authEmail, authPassword);
     await deleteApp(tempApp);
     console.log(`Successfully registered ${authEmail} in Firebase Auth.`);
     return true;
@@ -412,7 +421,20 @@ export function initDatabase() {
 export function getStoredUsers(): User[] {
   initDatabase();
   const data = localStorage.getItem(getPrefixedKey('qsp_users'));
-  return data ? JSON.parse(data) : INITIAL_USERS;
+  if (data) return JSON.parse(data);
+  const activeStoreId = localStorage.getItem('active_store_id') || 'store_teste_cia';
+  if (activeStoreId === 'store_teste_cia') return INITIAL_USERS;
+  
+  const storeConfig = getActiveStoreConfig();
+  return [{
+    id: 100,
+    name: storeConfig?.ownerName || 'master',
+    password: storeConfig?.password || '1234',
+    role: 'Gerente',
+    meta: 'Proprietário',
+    active: true,
+    permissions: ['/dashboard', '/tables', '/commerce', '/inventory', '/kiosk', '/reports', '/admin']
+  }];
 }
 
 export function saveUsers(users: User[]) {
@@ -463,7 +485,9 @@ export function setCurrentUser(user: User) {
 export function getStoredInventory(): Product[] {
   initDatabase();
   const data = localStorage.getItem(getPrefixedKey('qsp_inventory'));
-  return data ? JSON.parse(data) : INITIAL_PRODUCTS;
+  if (data) return JSON.parse(data);
+  const activeStoreId = localStorage.getItem('active_store_id') || 'store_teste_cia';
+  return activeStoreId === 'store_teste_cia' ? INITIAL_PRODUCTS : [];
 }
 
 export function saveInventory(products: Product[]) {
@@ -500,7 +524,12 @@ export function saveInventory(products: Product[]) {
 export function getStoredTables(): Table[] {
   initDatabase();
   const data = localStorage.getItem(getPrefixedKey('qsp_tables'));
-  return data ? JSON.parse(data) : INITIAL_TABLES;
+  if (data) {
+    const parsed = JSON.parse(data);
+    return parsed.sort((a: Table, b: Table) => a.id - b.id);
+  }
+  const activeStoreId = localStorage.getItem('active_store_id') || 'store_teste_cia';
+  return activeStoreId === 'store_teste_cia' ? INITIAL_TABLES : [];
 }
 
 export function saveTables(tables: Table[]) {
@@ -537,7 +566,9 @@ export function saveTables(tables: Table[]) {
 export function getStoredTransactions(): Transaction[] {
   initDatabase();
   const data = localStorage.getItem(getPrefixedKey('qsp_transactions'));
-  return data ? JSON.parse(data) : INITIAL_TRANSACTIONS;
+  if (data) return JSON.parse(data);
+  const activeStoreId = localStorage.getItem('active_store_id') || 'store_teste_cia';
+  return activeStoreId === 'store_teste_cia' ? INITIAL_TRANSACTIONS : [];
 }
 
 export function saveTransactions(transactions: Transaction[]) {
@@ -653,10 +684,25 @@ export function startFirebaseSync(forceReset = false) {
   // 2. Sync users
   const unsubUsers = onSnapshot(collection(db, `stores/${activeStoreId}/users`), (snapshot) => {
     if (snapshot.empty) {
-      // Seed Firestore with initial users
-      INITIAL_USERS.forEach(async (user) => {
-        await setDoc(doc(db, `stores/${activeStoreId}/users`, user.id.toString()), user);
-      });
+      if (activeStoreId === 'store_teste_cia') {
+        // Seed Firestore with initial users
+        INITIAL_USERS.forEach(async (user) => {
+          await setDoc(doc(db, `stores/${activeStoreId}/users`, user.id.toString()), user);
+        });
+      } else {
+        // Seed with default admin (the store master/owner)
+        const storeConfig = getActiveStoreConfig();
+        const defaultAdmin: User = {
+          id: 100,
+          name: storeConfig?.ownerName || 'master',
+          password: storeConfig?.password || '1234',
+          role: 'Gerente',
+          meta: 'Proprietário',
+          active: true,
+          permissions: ['/dashboard', '/tables', '/commerce', '/inventory', '/kiosk', '/reports', '/admin']
+        };
+        setDoc(doc(db, `stores/${activeStoreId}/users`, '100'), defaultAdmin);
+      }
       return;
     }
     isSyncingFromFirestore = true;
@@ -675,10 +721,15 @@ export function startFirebaseSync(forceReset = false) {
   // 3. Sync inventory (products)
   const unsubInventory = onSnapshot(collection(db, `stores/${activeStoreId}/inventory`), (snapshot) => {
     if (snapshot.empty) {
-      // Seed Firestore with initial products
-      INITIAL_PRODUCTS.forEach(async (product) => {
-        await setDoc(doc(db, `stores/${activeStoreId}/inventory`, product.id.toString()), product);
-      });
+      if (activeStoreId === 'store_teste_cia') {
+        // Seed Firestore with initial products
+        INITIAL_PRODUCTS.forEach(async (product) => {
+          await setDoc(doc(db, `stores/${activeStoreId}/inventory`, product.id.toString()), product);
+        });
+      } else {
+        localStorage.setItem(`${activeStoreId}_qsp_inventory`, JSON.stringify([]));
+        window.dispatchEvent(new Event('qsp_database_updated'));
+      }
       return;
     }
     isSyncingFromFirestore = true;
@@ -697,10 +748,15 @@ export function startFirebaseSync(forceReset = false) {
   // 4. Sync tables (mesas)
   const unsubTables = onSnapshot(collection(db, `stores/${activeStoreId}/tables`), (snapshot) => {
     if (snapshot.empty) {
-      // Seed Firestore with initial tables
-      INITIAL_TABLES.forEach(async (table) => {
-        await setDoc(doc(db, `stores/${activeStoreId}/tables`, table.id.toString()), table);
-      });
+      if (activeStoreId === 'store_teste_cia') {
+        // Seed Firestore with initial tables
+        INITIAL_TABLES.forEach(async (table) => {
+          await setDoc(doc(db, `stores/${activeStoreId}/tables`, table.id.toString()), table);
+        });
+      } else {
+        localStorage.setItem(`${activeStoreId}_qsp_tables`, JSON.stringify([]));
+        window.dispatchEvent(new Event('qsp_database_updated'));
+      }
       return;
     }
     isSyncingFromFirestore = true;
@@ -720,11 +776,16 @@ export function startFirebaseSync(forceReset = false) {
   // 5. Sync transactions
   const unsubTransactions = onSnapshot(collection(db, `stores/${activeStoreId}/transactions`), (snapshot) => {
     if (snapshot.empty) {
-      // Seed Firestore with initial transactions
-      INITIAL_TRANSACTIONS.forEach(async (tx) => {
-        const docId = tx.orderId.replace('#', '');
-        await setDoc(doc(db, `stores/${activeStoreId}/transactions`, docId), tx);
-      });
+      if (activeStoreId === 'store_teste_cia') {
+        // Seed Firestore with initial transactions
+        INITIAL_TRANSACTIONS.forEach(async (tx) => {
+          const docId = tx.orderId.replace('#', '');
+          await setDoc(doc(db, `stores/${activeStoreId}/transactions`, docId), tx);
+        });
+      } else {
+        localStorage.setItem(`${activeStoreId}_qsp_transactions`, JSON.stringify([]));
+        window.dispatchEvent(new Event('qsp_database_updated'));
+      }
       return;
     }
     isSyncingFromFirestore = true;
