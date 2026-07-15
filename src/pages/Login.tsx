@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, Lock, Eye, LogIn, Info, Loader2 } from 'lucide-react';
-import { getStoredUsers, setCurrentUser, getStoredStores, getAuthEmail, registerUserInFirebaseAuth, getAuthPassword } from '../utils/db';
+import { getStoredUsers, setCurrentUser, getStoredStores, getAuthEmail, registerUserInFirebaseAuth, getAuthPassword, startFirebaseSync } from '../utils/db';
 import { auth } from '../utils/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import AlertModal from '../components/ui/AlertModal';
@@ -125,6 +125,7 @@ export default function Login() {
         }
 
         setCurrentUser(defaultStoreAdmin);
+        startFirebaseSync(true);
         navigate('/dashboard');
         return;
       }
@@ -163,6 +164,7 @@ export default function Login() {
         }
 
         setCurrentUser(foundEmployee);
+        startFirebaseSync(true);
         if (foundEmployee.role === 'Vendedor') {
           navigate('/tables');
         } else {

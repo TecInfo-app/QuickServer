@@ -75,11 +75,7 @@ service cloud.firestore {
 
     // Stores collection
     match /stores/{storeId} {
-      allow read: if isSignedIn() && (
-        isCentralAdmin() ||
-        request.auth.token.email.toLowerCase().endsWith('_' + storeId.toLowerCase() + '@quickserve.com') ||
-        resource.data.email.toLowerCase() == request.auth.token.email.toLowerCase()
-      );
+      allow read: if isSignedIn();
       
       allow create, update: if isCentralAdmin() && isValidStore(request.resource.data);
       allow delete: if isCentralAdmin();
