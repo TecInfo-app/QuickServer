@@ -49,6 +49,12 @@ export default function Login() {
       } catch (err) {
         console.warn("Auto-register of admin in firebase failed or already exists:", err);
       }
+      // Sign in central admin to Firebase Auth so Firestore rules pass successfully
+      try {
+        await signInWithEmailAndPassword(auth, 'iranildo@quickserve.com', '123456');
+      } catch (err) {
+        console.error("Firebase sign in for central admin failed:", err);
+      }
       setCurrentUser(centralAdminUser);
       navigate('/central-admin');
       return;
@@ -114,7 +120,6 @@ export default function Login() {
         // If the Firebase Auth login was not completed, auto-register this account on the fly!
         if (!authUserCredential) {
           await registerUserInFirebaseAuth(foundStore.email, foundStore.password, foundStore.id);
-          await registerUserInFirebaseAuth(foundStore.ownerName, foundStore.password, foundStore.id);
           // Try to sign in again after auto-registration
           try {
             const authPassword = getAuthPassword(trimPass);

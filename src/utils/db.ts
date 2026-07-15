@@ -343,10 +343,9 @@ export function createNewStore(store: Store) {
     console.error('Error seeding admin user to Firestore:', err);
   }
 
-  // Register store master and owner user in Firebase Auth in the background
+  // Register store master in Firebase Auth in the background
   try {
     registerUserInFirebaseAuth(store.email, store.password, store.id);
-    registerUserInFirebaseAuth(store.ownerName, store.password, store.id);
   } catch (err) {
     console.error('Error in registerUserInFirebaseAuth:', err);
   }
@@ -482,8 +481,8 @@ export function saveUsers(users: User[]) {
     users.forEach(async (user) => {
       try {
         await setDoc(doc(db, `stores/${activeStoreId}/users`, user.id.toString()), user);
-        // Also register employees in Firebase Auth if they have a password
-        if (user.password) {
+        // Also register employees in Firebase Auth if they have a password and are not the master owner (id 100, who uses the store email)
+        if (user.password && user.id !== 100) {
           registerUserInFirebaseAuth(user.name, user.password, activeStoreId);
         }
       } catch (err) {
