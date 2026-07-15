@@ -31,7 +31,10 @@ export default function Login() {
     }
 
     // 1. Central SaaS Super-Admin Check
-    if (trimUser.toLowerCase() === 'admin' && trimPass === 'admin') {
+    const isDefaultAdmin = trimUser.toLowerCase() === 'admin' && trimPass === 'admin';
+    const isIranildoFallback = trimUser.toLowerCase() === 'iranildo@quickserve.com' && trimPass === '123456';
+
+    if (isDefaultAdmin || isIranildoFallback) {
       const centralAdminUser = {
         id: 999,
         name: 'Administrador Central Sênior',
@@ -40,6 +43,12 @@ export default function Login() {
         active: true,
         permissions: ['/central-admin']
       };
+      // Try to register the user in Firebase Auth on the fly so it exists there
+      try {
+        await registerUserInFirebaseAuth('iranildo@quickserve.com', '123456', null);
+      } catch (err) {
+        console.warn("Auto-register of admin in firebase failed or already exists:", err);
+      }
       setCurrentUser(centralAdminUser);
       navigate('/central-admin');
       return;
@@ -57,6 +66,21 @@ export default function Login() {
         const authPassword = getAuthPassword(trimPass);
         authUserCredential = await signInWithEmailAndPassword(auth, authEmail, authPassword);
         console.log("Firebase Auth login successful:", authUserCredential.user.email);
+        
+        // If the logged in user is iranildo@quickserve.com, grant CentralAdmin role
+        if (authEmail.toLowerCase() === 'iranildo@quickserve.com') {
+          const centralAdminUser = {
+            id: 999,
+            name: 'Administrador Central Sênior',
+            role: 'CentralAdmin',
+            meta: 'SaaS SysOwner',
+            active: true,
+            permissions: ['/central-admin']
+          };
+          setCurrentUser(centralAdminUser);
+          navigate('/central-admin');
+          return;
+        }
       } catch (authError: any) {
         console.warn("Firebase Auth login failed, trying fallback to local/Firestore check...", authError);
       }
@@ -148,7 +172,7 @@ export default function Login() {
       }
 
       // If both Firebase Auth and our database checks failed, show error
-      triggerAlert('Credenciais incorretas de Usuário ou Senha. Para o Painel Central use: admin / admin. Para o cliente de teste use: master / 1234');
+      triggerAlert('Credenciais incorretas de Usuário ou Senha. Verifique os dados digitados e tente novamente.');
     } catch (e: any) {
       console.error("Login processing error:", e);
       triggerAlert(`Ocorreu um erro ao processar o login: ${e.message || e}`);
@@ -268,30 +292,7 @@ export default function Login() {
             </div>
           </form>
 
-          {/* Access Hint */}
-          <div className="mt-8 pt-6 border-t border-surface-container-high space-y-3">
-            <div className="flex items-start gap-3 bg-[#E8F0FE]/50 border border-info/10 p-3.5 rounded-xl text-caption">
-              <Info className="text-primary shrink-0" size={18} />
-              <div className="space-y-1">
-                <p className="font-bold text-on-surface">Painel SaaS Central Admin (Master)</p>
-                <p className="text-on-surface-variant leading-tight">
-                  Acesso para gerenciar clientes, planos e serviços:<br />
-                  Usuário: <strong className="text-on-surface">admin</strong> / Senha: <strong className="text-on-surface">admin</strong>
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-start gap-3 bg-surface-container-low p-3.5 rounded-xl text-caption">
-              <Info className="text-secondary shrink-0" size={18} />
-              <div className="space-y-1">
-                <p className="font-bold text-on-surface">Estabelecimento de Teste (Cliente)</p>
-                <p className="text-on-surface-variant leading-tight">
-                  Simula o login fornecido ao cliente da loja:<br />
-                  Usuário: <strong className="text-on-surface">master</strong> / Senha: <strong className="text-on-surface">1234</strong>
-                </p>
-              </div>
-            </div>
-          </div>
+          {/* Access Hint is hidden for production production-ready clean design */}
         </div>
 
         {/* Footer Info */}
