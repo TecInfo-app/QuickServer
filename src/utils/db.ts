@@ -268,15 +268,26 @@ export function getPrefixedKey(baseKey: string): string {
 
 export function getStoredStores(): Store[] {
   const data = localStorage.getItem('qsp_stores');
+  let parsed: Store[] = [];
   if (!data) {
+    parsed = INITIAL_STORES;
     localStorage.setItem('qsp_stores', JSON.stringify(INITIAL_STORES));
-    return INITIAL_STORES;
+  } else {
+    try {
+      parsed = JSON.parse(data);
+    } catch (e) {
+      parsed = INITIAL_STORES;
+    }
   }
-  try {
-    return JSON.parse(data);
-  } catch (e) {
-    return INITIAL_STORES;
-  }
+  return (parsed || []).map(s => ({
+    ...s,
+    services: {
+      kiosk: s.services?.kiosk !== false,
+      advancedReports: s.services?.advancedReports !== false,
+      unlimitedTables: s.services?.unlimitedTables !== false,
+      ...(s.services || {})
+    }
+  }));
 }
 
 export function saveStores(stores: Store[]) {

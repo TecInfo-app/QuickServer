@@ -242,7 +242,7 @@ export default function CentralAdmin() {
   const totalStores = stores.length;
   const activeStores = stores.filter(s => s.status === 'ACTIVE').length;
   const suspendedStores = stores.filter(s => s.status === 'SUSPENDED').length;
-  const totemStores = stores.filter(s => s.services.kiosk).length;
+  const totemStores = stores.filter(s => s.services?.kiosk).length;
 
   const filteredStores = stores.filter(store => 
     store.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -449,11 +449,11 @@ export default function CentralAdmin() {
                         <label className="flex items-center gap-2.5 cursor-pointer select-none">
                           <input
                             type="checkbox"
-                            checked={store.services.kiosk}
+                            checked={!!store.services?.kiosk}
                             onChange={() => handleToggleService(store.id, 'kiosk')}
                             className="w-4 h-4 rounded border-outline-variant text-secondary-dim focus:ring-secondary"
                           />
-                          <span className={`text-caption ${store.services.kiosk ? 'text-secondary font-bold' : 'text-on-surface-variant/60 line-through'}`}>
+                          <span className={`text-caption ${store.services?.kiosk ? 'text-secondary font-bold' : 'text-on-surface-variant/60 line-through'}`}>
                             Totem Autoatendimento
                           </span>
                         </label>
@@ -462,11 +462,11 @@ export default function CentralAdmin() {
                         <label className="flex items-center gap-2.5 cursor-pointer select-none">
                           <input
                             type="checkbox"
-                            checked={store.services.advancedReports}
+                            checked={!!store.services?.advancedReports}
                             onChange={() => handleToggleService(store.id, 'advancedReports')}
                             className="w-4 h-4 rounded border-outline-variant text-secondary-dim focus:ring-secondary"
                           />
-                          <span className={`text-caption ${store.services.advancedReports ? 'text-secondary font-bold' : 'text-on-surface-variant/60 line-through'}`}>
+                          <span className={`text-caption ${store.services?.advancedReports ? 'text-secondary font-bold' : 'text-on-surface-variant/60 line-through'}`}>
                             Relatórios Avançados
                           </span>
                         </label>
@@ -475,11 +475,11 @@ export default function CentralAdmin() {
                         <label className="flex items-center gap-2.5 cursor-pointer select-none">
                           <input
                             type="checkbox"
-                            checked={store.services.unlimitedTables}
+                            checked={!!store.services?.unlimitedTables}
                             onChange={() => handleToggleService(store.id, 'unlimitedTables')}
                             className="w-4 h-4 rounded border-outline-variant text-secondary-dim focus:ring-secondary"
                           />
-                          <span className={`text-caption ${store.services.unlimitedTables ? 'text-secondary font-bold' : 'text-on-surface-variant/60 line-through'}`}>
+                          <span className={`text-caption ${store.services?.unlimitedTables ? 'text-secondary font-bold' : 'text-on-surface-variant/60 line-through'}`}>
                             Mesas Ilimitadas
                           </span>
                         </label>
