@@ -404,6 +404,7 @@ export function initDatabase() {
       localStorage.setItem('qsp_current_user', JSON.stringify(fallbackUser));
     }
   }
+  localStorage.setItem('qsp_database_initialized', 'true');
   startFirebaseSync();
 }
 
@@ -618,10 +619,17 @@ export function startFirebaseSync(forceReset = false) {
   // 1. Sync global stores
   const unsubStores = onSnapshot(collection(db, 'stores'), (snapshot) => {
     if (snapshot.empty) {
-      // Seed Firestore with initial stores
-      INITIAL_STORES.forEach(async (store) => {
-        await setDoc(doc(db, 'stores', store.id), store);
-      });
+      // Seed Firestore with initial stores only if not yet initialized locally
+      const isInitialized = localStorage.getItem('qsp_database_initialized') === 'true';
+      if (!isInitialized) {
+        INITIAL_STORES.forEach(async (store) => {
+          await setDoc(doc(db, 'stores', store.id), store);
+        });
+      } else {
+        // Respect empty state (all stores deleted explicitly)
+        localStorage.setItem('qsp_stores', JSON.stringify([]));
+        window.dispatchEvent(new Event('qsp_database_updated'));
+      }
       return;
     }
     isSyncingFromFirestore = true;
@@ -631,6 +639,9 @@ export function startFirebaseSync(forceReset = false) {
     });
     if (stores.length > 0) {
       localStorage.setItem('qsp_stores', JSON.stringify(stores));
+      window.dispatchEvent(new Event('qsp_database_updated'));
+    } else {
+      localStorage.setItem('qsp_stores', JSON.stringify([]));
       window.dispatchEvent(new Event('qsp_database_updated'));
     }
     isSyncingFromFirestore = false;

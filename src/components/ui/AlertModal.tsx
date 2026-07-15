@@ -51,8 +51,8 @@ export default function AlertModal({
               </button>
               <button 
                 onClick={() => {
-                  onConfirm();
                   onClose();
+                  onConfirm();
                 }} 
                 className="flex-1 p-3 rounded-xl bg-primary text-on-primary font-bold hover:brightness-95 active:scale-95 transition-all"
               >

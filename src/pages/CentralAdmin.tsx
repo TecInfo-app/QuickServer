@@ -43,7 +43,14 @@ export default function CentralAdmin() {
   const [visiblePasswords, setVisiblePasswords] = useState<{ [storeId: string]: boolean }>({});
 
   useEffect(() => {
-    setStores(getStoredStores());
+    const loadStores = () => {
+      setStores(getStoredStores());
+    };
+    loadStores();
+    window.addEventListener('qsp_database_updated', loadStores);
+    return () => {
+      window.removeEventListener('qsp_database_updated', loadStores);
+    };
   }, []);
 
   const triggerAlert = (title: string, message: string, onConfirm?: () => void) => {
@@ -140,6 +147,12 @@ export default function CentralAdmin() {
       () => {
         // Use our db helper to remove locally & from Firestore
         deleteStore(store.id);
+
+        // Clear active store ID if we deleted the currently active store context
+        const activeStoreId = localStorage.getItem('active_store_id');
+        if (activeStoreId === store.id) {
+          localStorage.removeItem('active_store_id');
+        }
 
         // Refresh state list
         setStores(getStoredStores());
