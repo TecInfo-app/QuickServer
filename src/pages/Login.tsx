@@ -88,7 +88,7 @@ export default function Login() {
       // 2. Client Store Master Login Check (registered stores)
       const stores = getStoredStores();
       const foundStore = stores.find(
-        s => s.email.toLowerCase() === trimUser.toLowerCase() && s.password === trimPass
+        s => s && s.email && s.email.toLowerCase() === trimUser.toLowerCase() && s.password === trimPass
       );
 
       if (foundStore) {

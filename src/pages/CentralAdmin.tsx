@@ -245,9 +245,9 @@ export default function CentralAdmin() {
   const totemStores = stores.filter(s => s.services?.kiosk).length;
 
   const filteredStores = stores.filter(store => 
-    store.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    store.ownerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    store.email.toLowerCase().includes(searchTerm.toLowerCase())
+    (store.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (store.ownerName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (store.email || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const getStoreLink = (storeId: string) => {
