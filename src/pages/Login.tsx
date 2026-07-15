@@ -62,9 +62,51 @@ export default function Login() {
 
     setIsLoggingIn(true);
     try {
-      // Get the correct Firebase Auth email mapping for this login attempt
-      const activeStoreId = localStorage.getItem('active_store_id');
-      const authEmail = getAuthEmail(trimUser, activeStoreId);
+      // 1. Find matching Store or Employee BEFORE trying Firebase sign-in!
+      // This allows us to know the EXACT correct Firebase email mapping first, preventing wrong registrations.
+      const stores = getStoredStores();
+      const foundStore = stores.find(
+        s => s && s.email && 
+        (s.email.toLowerCase() === trimUser.toLowerCase() || 
+         (s.ownerName && s.ownerName.toLowerCase() === trimUser.toLowerCase())) && 
+        s.password === trimPass
+      );
+
+      let targetStoreId = localStorage.getItem('active_store_id');
+      let foundEmployee = null;
+
+      if (foundStore) {
+        targetStoreId = foundStore.id;
+      } else {
+        const employees = getStoredUsers();
+        foundEmployee = employees.find(
+          u => u && u.name.toLowerCase() === trimUser.toLowerCase() && u.password === trimPass && u.id !== 100
+        );
+      }
+
+      // If we didn't find any match locally, trigger error immediately
+      if (!foundStore && !foundEmployee) {
+        triggerAlert('Credenciais incorretas de Usuário ou Senha. Verifique os dados digitados e tente novamente.');
+        setIsLoggingIn(false);
+        return;
+      }
+
+      // Check if store is suspended
+      const finalStoreId = foundStore ? foundStore.id : targetStoreId;
+      const associatedStore = stores.find(s => s.id === finalStoreId);
+      if (associatedStore && associatedStore.status === 'SUSPENDED') {
+        triggerAlert('Seu estabelecimento correspondente está suspenso no painel central. Por favor, regularize sua assinatura com o Administrador.');
+        setIsLoggingIn(false);
+        return;
+      }
+
+      // Get the correct Firebase Auth email mapping
+      let authEmail = '';
+      if (foundStore) {
+        authEmail = foundStore.email;
+      } else if (foundEmployee && finalStoreId) {
+        authEmail = getAuthEmail(foundEmployee.name, finalStoreId);
+      }
 
       // Try logging in using Firebase Authentication!
       let authUserCredential = null;
@@ -72,37 +114,28 @@ export default function Login() {
         const authPassword = getAuthPassword(trimPass);
         authUserCredential = await signInWithEmailAndPassword(auth, authEmail, authPassword);
         console.log("Firebase Auth login successful:", authUserCredential.user.email);
-        
-        // If the logged in user is iranildo@quickserve.com, grant CentralAdmin role
-        if (authEmail.toLowerCase() === 'iranildo@quickserve.com') {
-          const centralAdminUser = {
-            id: 999,
-            name: 'Administrador Central Sênior',
-            role: 'CentralAdmin',
-            meta: 'SaaS SysOwner',
-            active: true,
-            permissions: ['/central-admin']
-          };
-          setCurrentUser(centralAdminUser);
-          navigate('/central-admin');
-          return;
-        }
       } catch (authError: any) {
-        console.warn("Firebase Auth login failed, trying fallback to local/Firestore check...", authError);
+        console.warn("Firebase Auth login failed, trying fallback to on-the-fly registration...", authError);
       }
 
-      // 2. Client Store Master Login Check (registered stores)
-      const stores = getStoredStores();
-      const foundStore = stores.find(
-        s => s && s.email && s.email.toLowerCase() === trimUser.toLowerCase() && s.password === trimPass
-      );
-
-      if (foundStore) {
-        if (foundStore.status === 'SUSPENDED') {
-          triggerAlert('Seu estabelecimento está suspenso no painel central. Por favor, regularize sua assinatura.');
-          return;
+      // If the Firebase Auth login was not completed, auto-register this account on the fly!
+      if (!authUserCredential) {
+        if (foundStore) {
+          await registerUserInFirebaseAuth(foundStore.email, foundStore.password, foundStore.id);
+        } else if (foundEmployee && finalStoreId) {
+          await registerUserInFirebaseAuth(foundEmployee.name, foundEmployee.password!, finalStoreId);
         }
         
+        // Try to sign in again after auto-registration
+        try {
+          const authPassword = getAuthPassword(trimPass);
+          await signInWithEmailAndPassword(auth, authEmail, authPassword);
+        } catch (e) {
+          console.error("Post-registration login failed:", e);
+        }
+      }
+
+      if (foundStore) {
         // Select active tenant context
         localStorage.setItem('active_store_id', foundStore.id);
         
@@ -117,55 +150,14 @@ export default function Login() {
           permissions: ['/dashboard', '/tables', '/inventory', '/kiosk', '/reports', '/admin']
         };
 
-        // If the Firebase Auth login was not completed, auto-register this account on the fly!
-        if (!authUserCredential) {
-          await registerUserInFirebaseAuth(foundStore.email, foundStore.password, foundStore.id);
-          // Try to sign in again after auto-registration
-          try {
-            const authPassword = getAuthPassword(trimPass);
-            await signInWithEmailAndPassword(auth, authEmail, authPassword);
-          } catch (e) {
-            console.error("Post-registration login failed:", e);
-          }
-        }
-
         setCurrentUser(defaultStoreAdmin);
         startFirebaseSync(true);
         navigate('/dashboard');
-        return;
-      }
-
-      // 3. Store Employee Login Check (prefixed by active store)
-      const currentActiveStoreId = localStorage.getItem('active_store_id');
-      if (currentActiveStoreId) {
-        const activeStore = getStoredStores().find(s => s.id === currentActiveStoreId);
-        if (activeStore && activeStore.status === 'SUSPENDED') {
-          triggerAlert('Seu estabelecimento correspondente está suspenso no painel central. Por favor, regularize sua assinatura com o Administrador.');
-          return;
-        }
-      }
-
-      const employees = getStoredUsers();
-      const foundEmployee = employees.find(
-        u => u.name.toLowerCase() === trimUser.toLowerCase() && u.password === trimPass
-      );
-
-      if (foundEmployee) {
+      } else if (foundEmployee) {
         if (!foundEmployee.active) {
           triggerAlert('Seu cadastro de funcionário está desativado no momento.');
+          setIsLoggingIn(false);
           return;
-        }
-
-        // If the Firebase Auth login was not completed, auto-register this account on the fly!
-        if (!authUserCredential && currentActiveStoreId) {
-          await registerUserInFirebaseAuth(foundEmployee.name, foundEmployee.password!, currentActiveStoreId);
-          // Try to sign in again after auto-registration
-          try {
-            const authPassword = getAuthPassword(trimPass);
-            await signInWithEmailAndPassword(auth, authEmail, authPassword);
-          } catch (e) {
-            console.error("Post-registration login failed for employee:", e);
-          }
         }
 
         setCurrentUser(foundEmployee);
@@ -175,11 +167,7 @@ export default function Login() {
         } else {
           navigate('/dashboard');
         }
-        return;
       }
-
-      // If both Firebase Auth and our database checks failed, show error
-      triggerAlert('Credenciais incorretas de Usuário ou Senha. Verifique os dados digitados e tente novamente.');
     } catch (e: any) {
       console.error("Login processing error:", e);
       triggerAlert(`Ocorreu um erro ao processar o login: ${e.message || e}`);

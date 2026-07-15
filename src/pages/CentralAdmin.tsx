@@ -53,6 +53,24 @@ export default function CentralAdmin() {
     };
   }, []);
 
+  useEffect(() => {
+    // Ensure Firebase Auth is signed in as Central Admin so Firestore writes are authorized
+    const checkAndSignInCentralAdmin = async () => {
+      try {
+        const { auth } = await import('../utils/firebase');
+        const { signInWithEmailAndPassword } = await import('firebase/auth');
+        if (auth.currentUser?.email?.toLowerCase() !== 'iranildo@quickserve.com') {
+          console.log("Enforcing Firebase Auth Central Admin sign in...");
+          await signInWithEmailAndPassword(auth, 'iranildo@quickserve.com', '123456');
+          console.log("Firebase Auth Central Admin sign in successful.");
+        }
+      } catch (err) {
+        console.error("Failed to automatically sign in Central Admin in Firebase Auth:", err);
+      }
+    };
+    checkAndSignInCentralAdmin();
+  }, []);
+
   const triggerAlert = (title: string, message: string, onConfirm?: () => void) => {
     setAlertState({ isOpen: true, title, message, onConfirm });
   };
