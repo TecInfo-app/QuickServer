@@ -18,6 +18,17 @@ export function getAuthEmail(username: string, storeId: string | null): string {
     return username;
   }
   const activeId = storeId || localStorage.getItem('active_store_id') || 'store_teste_cia';
+  
+  try {
+    const stores = getStoredStores();
+    const store = stores.find(s => s.id === activeId);
+    if (store && store.ownerName && store.ownerName.trim().toLowerCase() === username.trim().toLowerCase() && store.email && store.email.includes('@')) {
+      return store.email;
+    }
+  } catch (e) {
+    console.error('Error matching ownerName to store email in getAuthEmail:', e);
+  }
+
   const normalizedUser = username
     .toLowerCase()
     .normalize('NFD')
