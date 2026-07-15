@@ -689,6 +689,23 @@ export function startFirebaseSync(forceReset = false) {
     snapshot.forEach((d) => {
       stores.push(d.data() as Store);
     });
+
+    // Self-heal: If the active store is not present in Firestore, but the current user is the owner, write it!
+    const activeStoreId = localStorage.getItem('active_store_id');
+    if (activeStoreId) {
+      const activeLocalStore = getStoredStores().find(s => s.id === activeStoreId);
+      const isAlreadyInFirestore = stores.some(s => s.id === activeStoreId);
+      if (activeLocalStore && !isAlreadyInFirestore) {
+        const currentUser = getCurrentUser();
+        if (currentUser && currentUser.id === 100 && activeLocalStore.email) {
+          console.log("Self-healing: Active store not found in Firestore. Attempting to write it using client session...");
+          setDoc(doc(db, 'stores', activeStoreId), activeLocalStore)
+            .then(() => console.log("Self-healing successful: Store document written to Firestore."))
+            .catch(err => console.error("Self-healing failed to write store document:", err));
+        }
+      }
+    }
+
     if (stores.length > 0) {
       localStorage.setItem('qsp_stores', JSON.stringify(stores));
       window.dispatchEvent(new Event('qsp_database_updated'));

@@ -150,6 +150,16 @@ export default function Login() {
           permissions: ['/dashboard', '/tables', '/inventory', '/kiosk', '/reports', '/admin']
         };
 
+        // Self-heal store document in Firestore using successfully authenticated client credentials
+        try {
+          const { doc, setDoc } = await import('firebase/firestore');
+          const { db } = await import('../utils/firebase');
+          await setDoc(doc(db, 'stores', foundStore.id), foundStore);
+          console.log("Successfully self-healed store document in Firestore using client credentials.");
+        } catch (healErr) {
+          console.error("Non-blocking self-healing store write failed:", healErr);
+        }
+
         setCurrentUser(defaultStoreAdmin);
         startFirebaseSync(true);
         navigate('/dashboard');
