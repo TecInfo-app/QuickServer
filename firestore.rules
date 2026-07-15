@@ -1,33 +1,115 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Default-deny catch-all rule
+    
+    // Global Safety Net: Default-deny catch-all rule
     match /{document=**} {
       allow read, write: if false;
     }
 
+    // --- REUSABLE SECURITY HELPERS ---
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isCentralAdmin() {
+      return isSignedIn() && request.auth.token.email.toLowerCase() == 'iranildo@quickserve.com';
+    }
+
+    function hasStoreAccess(storeId) {
+      return isSignedIn() && (
+        isCentralAdmin() ||
+        request.auth.token.email.toLowerCase().endsWith('_' + storeId.toLowerCase() + '@quickserve.com') ||
+        get(/databases/$(database)/documents/stores/$(storeId)).data.email.toLowerCase() == request.auth.token.email.toLowerCase()
+      );
+    }
+
+    // --- ENTITY VALIDATION HELPERS ---
+
+    function isValidStore(data) {
+      return data.id is string && data.id.size() <= 100 &&
+             data.name is string && data.name.size() <= 200 &&
+             data.ownerName is string && data.ownerName.size() <= 200 &&
+             data.email is string && data.email.size() <= 200 &&
+             data.password is string && data.password.size() <= 100 &&
+             data.status is string && (data.status == 'ACTIVE' || data.status == 'SUSPENDED') &&
+             data.createdAt is string;
+    }
+
+    function isValidUser(data) {
+      return data.id is int &&
+             data.name is string && data.name.size() <= 200 &&
+             data.password is string && data.password.size() <= 100 &&
+             data.role is string && data.role.size() <= 50 &&
+             data.active is bool;
+    }
+
+    function isValidProduct(data) {
+      return data.id is int &&
+             data.name is string && data.name.size() <= 200 &&
+             data.category is string && data.category.size() <= 100 &&
+             (data.stock is int || data.stock is float) &&
+             (data.cost is int || data.cost is float) &&
+             (data.price is int || data.price is float) &&
+             data.isLow is bool;
+    }
+
+    function isValidTable(data) {
+      return data.id is int &&
+             data.status is string && (data.status == 'ACTIVE' || data.status == 'CLOSED') &&
+             data.elapsed is string &&
+             data.server is string;
+    }
+
+    function isValidTransaction(data) {
+      return data.orderId is string && data.orderId.size() <= 100 &&
+             data.elapsed is string &&
+             data.itemsCount is int &&
+             (data.total is int || data.total is float) &&
+             data.method is string &&
+             (data.cost is int || data.cost is float);
+    }
+
+    // --- PATH MATCHERS ---
+
     // Stores collection
     match /stores/{storeId} {
-      allow read, write: if true;
+      allow read: if isSignedIn() && (
+        isCentralAdmin() ||
+        request.auth.token.email.toLowerCase().endsWith('_' + storeId.toLowerCase() + '@quickserve.com') ||
+        resource.data.email.toLowerCase() == request.auth.token.email.toLowerCase()
+      );
+      
+      allow create, update: if isCentralAdmin() && isValidStore(request.resource.data);
+      allow delete: if isCentralAdmin();
 
       // Users sub-collection
       match /users/{userId} {
-        allow read, write: if true;
+        allow read: if hasStoreAccess(storeId);
+        allow create, update: if hasStoreAccess(storeId) && isValidUser(request.resource.data);
+        allow delete: if hasStoreAccess(storeId);
       }
 
       // Inventory sub-collection
       match /inventory/{productId} {
-        allow read, write: if true;
+        allow read: if hasStoreAccess(storeId);
+        allow create, update: if hasStoreAccess(storeId) && isValidProduct(request.resource.data);
+        allow delete: if hasStoreAccess(storeId);
       }
 
       // Tables sub-collection
       match /tables/{tableId} {
-        allow read, write: if true;
+        allow read: if hasStoreAccess(storeId);
+        allow create, update: if hasStoreAccess(storeId) && isValidTable(request.resource.data);
+        allow delete: if hasStoreAccess(storeId);
       }
 
       // Transactions sub-collection
       match /transactions/{transactionId} {
-        allow read, write: if true;
+        allow read: if hasStoreAccess(storeId);
+        allow create, update: if hasStoreAccess(storeId) && isValidTransaction(request.resource.data);
+        allow delete: if hasStoreAccess(storeId);
       }
     }
   }
