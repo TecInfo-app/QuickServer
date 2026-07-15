@@ -310,7 +310,7 @@ export function saveStores(stores: Store[]) {
       try {
         await setDoc(doc(db, 'stores', store.id), store);
       } catch (err) {
-        handleFirestoreError(err, OperationType.WRITE, `stores/${store.id}`);
+        console.warn(`Firestore: Failed to sync store ${store.id} to cloud (check your security rules):`, err);
       }
     });
   }

@@ -14,15 +14,15 @@ service cloud.firestore {
     }
 
     function isCentralAdmin() {
-      return isSignedIn() && request.auth.token.email.toLowerCase() == 'iranildo@quickserve.com';
+      return isSignedIn() && request.auth.token.email.lower() == 'iranildo@quickserve.com';
     }
 
     function hasStoreAccess(storeId) {
       return isSignedIn() && (
         isCentralAdmin() ||
-        request.auth.token.email.toLowerCase().endsWith('_' + storeId.toLowerCase() + '@quickserve.com') ||
+        request.auth.token.email.lower().matches('.*_' + storeId.lower() + '@quickserve.com$') ||
         (exists(/databases/$(database)/documents/stores/$(storeId)) && 
-         get(/databases/$(database)/documents/stores/$(storeId)).data.email.toLowerCase() == request.auth.token.email.toLowerCase())
+         get(/databases/$(database)/documents/stores/$(storeId)).data.email.lower() == request.auth.token.email.lower())
       );
     }
 
@@ -34,7 +34,7 @@ service cloud.firestore {
       allow read: if isSignedIn();
       
       // Central admin or the store owner can create/update store documents
-      allow create: if isCentralAdmin() || (isSignedIn() && request.resource.data.email.toLowerCase() == request.auth.token.email.toLowerCase());
+      allow create: if isCentralAdmin() || (isSignedIn() && request.resource.data.email.lower() == request.auth.token.email.lower());
       allow update: if isCentralAdmin() || hasStoreAccess(storeId);
       allow delete: if isCentralAdmin();
 
