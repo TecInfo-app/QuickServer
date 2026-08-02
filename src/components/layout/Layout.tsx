@@ -67,6 +67,11 @@ export default function Layout() {
   });
 
   useEffect(() => {
+    if (!user || user.role === 'Cliente') {
+      navigate(currentStoreSlug ? `/login?store=${currentStoreSlug}` : '/login');
+      return;
+    }
+
     // Determine the allowed routes for current user
     let allowedPaths: string[] = [];
     if (user?.permissions) {
@@ -85,12 +90,14 @@ export default function Layout() {
     
     if (!isAllowed) {
       if (allowedPaths.length > 0) {
-        navigate(allowedPaths[0]); // fallback to first allowed path
+        // Prefer dashboard or tables over kiosk as fallback route
+        const fallback = allowedPaths.find(p => p !== '/kiosk') || allowedPaths[0];
+        navigate(fallback);
       } else {
         navigate('/login');
       }
     }
-  }, [user, location.pathname, navigate, isKioskServiceEnabled]);
+  }, [user, location.pathname, navigate, isKioskServiceEnabled, currentStoreSlug]);
 
   const initials = user && user.name ? user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'MA';
 
@@ -163,12 +170,35 @@ export default function Layout() {
             const Icon = item.icon;
             const targetProp = (item as any).target;
             const targetPath = getNavPath(item.path);
+
+            if (targetProp === '_blank') {
+              const fullHref = `${window.location.origin}${window.location.pathname}#${targetPath}`;
+              return (
+                <a
+                  key={item.path}
+                  href={fullHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={cn(
+                    "flex items-center gap-4 px-6 py-3 mx-2 rounded-lg transition-all",
+                    isActive 
+                      ? "bg-secondary-container text-on-secondary-container font-bold" 
+                      : "text-on-surface-variant hover:bg-surface-variant"
+                  )}
+                >
+                  <Icon size={20} />
+                  <span className="font-body-lg flex-grow flex items-center justify-between gap-1.5">
+                    <span>{item.name}</span>
+                    <ExternalLink size={14} className="opacity-60" />
+                  </span>
+                </a>
+              );
+            }
+
             return (
               <Link
                 key={item.path}
                 to={targetPath}
-                target={targetProp}
-                rel={targetProp === '_blank' ? 'noopener noreferrer' : undefined}
                 className={cn(
                   "flex items-center gap-4 px-6 py-3 mx-2 rounded-lg transition-all",
                   isActive 
@@ -179,10 +209,9 @@ export default function Layout() {
                 <Icon size={20} />
                 <span className="font-body-lg flex-grow flex items-center justify-between gap-1.5">
                   <span>{item.name}</span>
-                  {targetProp === '_blank' && <ExternalLink size={14} className="opacity-60" />}
                 </span>
               </Link>
-            )
+            );
           })}
         </nav>
         <div className="p-6 border-t border-surface-container">
@@ -205,12 +234,35 @@ export default function Layout() {
           const Icon = item.icon;
           const targetProp = (item as any).target;
           const targetPath = getNavPath(item.path);
+
+          if (targetProp === '_blank') {
+            const fullHref = `${window.location.origin}${window.location.pathname}#${targetPath}`;
+            return (
+              <a
+                key={item.path}
+                href={fullHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn(
+                  "flex flex-col items-center justify-center p-2 rounded-xl transition-all active:scale-110",
+                  isActive 
+                    ? "bg-primary-container text-on-primary-container" 
+                    : "text-on-surface-variant hover:bg-surface-variant"
+                )}
+              >
+                <Icon size={24} />
+                <span className="text-[10px] uppercase font-bold mt-1 flex items-center gap-0.5">
+                  <span>{item.name}</span>
+                  <ExternalLink size={10} className="opacity-60" />
+                </span>
+              </a>
+            );
+          }
+
           return (
             <Link
               key={item.path}
               to={targetPath}
-              target={targetProp}
-              rel={targetProp === '_blank' ? 'noopener noreferrer' : undefined}
               className={cn(
                 "flex flex-col items-center justify-center p-2 rounded-xl transition-all active:scale-110",
                 isActive 
@@ -221,7 +273,6 @@ export default function Layout() {
               <Icon size={24} />
               <span className="text-[10px] uppercase font-bold mt-1 flex items-center gap-0.5">
                 <span>{item.name}</span>
-                {targetProp === '_blank' && <ExternalLink size={10} className="opacity-60" />}
               </span>
             </Link>
           );

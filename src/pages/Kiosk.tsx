@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ShoppingCart, Smartphone, Check, ChevronRight, Search, Plus, Minus, FileText, ArrowLeft, Send, CheckCircle2, Flame, Loader2, Utensils, AlertCircle } from 'lucide-react';
-import { getStoredInventory, getStoredTables, saveTables, Product, Table, getActiveStoreConfig, getPrefixedKey, getAbacatePayConfig, checkAndApplyStoreFromURL } from '../utils/db';
+import { getStoredInventory, getStoredTables, saveTables, Product, Table, getActiveStoreConfig, getPrefixedKey, getAbacatePayConfig, checkAndApplyStoreFromURL, getStoreSlug } from '../utils/db';
 import { printOrderTicket } from '../utils/printer';
 import AlertModal from '../components/ui/AlertModal';
 
@@ -178,29 +178,12 @@ export default function Kiosk() {
     return () => document.removeEventListener('click', handleUserInteraction);
   }, []);
 
-  // Secure Totem / Lock active session context to Cliente Totem role
-  useEffect(() => {
-    const currentUser = localStorage.getItem('qsp_current_user');
-    if (currentUser) {
-      try {
-        const parsed = JSON.parse(currentUser);
-        if (parsed.role !== 'Cliente') {
-          const kioskUser = {
-            id: 990,
-            name: "Cliente Totem",
-            role: "Cliente",
-            meta: "Autoatendimento",
-            active: true,
-            permissions: ["/kiosk"]
-          };
-          localStorage.setItem('qsp_current_user', JSON.stringify(kioskUser));
-          window.dispatchEvent(new Event('qsp_database_updated'));
-        }
-      } catch (e) {
-        // ignore
-      }
-    }
-  }, []);
+  // Add top back button handler
+  const handleBackToDashboard = () => {
+    const active = getActiveStoreConfig();
+    const slug = active ? getStoreSlug(active) : '';
+    navigate(slug ? `/dashboard?store=${slug}` : '/dashboard');
+  };
 
   // Sync Draft Order State for QR code page updates
   const [currentKioskDraft, setCurrentKioskDraft] = useState<DraftKioskOrder | null>(null);
@@ -991,11 +974,18 @@ export default function Kiosk() {
             <p className="text-xs text-on-surface-variant leading-none">Autoatendimento do Balcão</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleBackToDashboard}
+            className="px-3.5 py-2 bg-surface hover:bg-surface-variant border border-outline-variant/40 rounded-xl font-bold text-xs text-on-surface flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-xs"
+            title="Voltar ao Painel do Caixa"
+          >
+            <ArrowLeft size={16} /> <span className="hidden sm:inline">Voltar ao</span> Painel
+          </button>
           {checkoutStep !== 'kiosk' && (
             <button
               onClick={handleRestartKiosk}
-              className="px-5 py-2.5 bg-surface-container hover:bg-surface-variant rounded-xl font-bold text-xs text-on-surface-variant transition-all hover:scale-105"
+              className="px-4 py-2 bg-surface-container hover:bg-surface-variant rounded-xl font-bold text-xs text-on-surface-variant transition-all hover:scale-105 cursor-pointer"
             >
               Voltar ao Cardápio
             </button>
