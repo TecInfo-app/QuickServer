@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from './components/layout/Layout';
 import Login from './pages/Login';
@@ -9,8 +10,14 @@ import Reports from './pages/Reports';
 import Admin from './pages/Admin';
 import Kiosk from './pages/Kiosk';
 import CentralAdmin from './pages/CentralAdmin';
+import { checkAndApplyStoreFromURL, startFirebaseSync } from './utils/db';
 
 export default function App() {
+  useEffect(() => {
+    checkAndApplyStoreFromURL();
+    startFirebaseSync();
+  }, []);
+
   return (
     <HashRouter>
       <Routes>

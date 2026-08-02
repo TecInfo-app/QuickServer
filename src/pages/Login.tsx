@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { User, Lock, Eye, LogIn, Info, Loader2, Building2 } from 'lucide-react';
-import { getStoredUsers, setCurrentUser, getStoredStores, getAuthEmail, registerUserInFirebaseAuth, getAuthPassword, startFirebaseSync, checkAndApplyStoreFromURL, getActiveStoreConfig, getStoreSlug, Store } from '../utils/db';
+import { getStoredUsers, setCurrentUser, getStoredStores, getAuthEmail, registerUserInFirebaseAuth, getAuthPassword, startFirebaseSync, checkAndApplyStoreFromURL, getActiveStoreConfig, getStoreSlug, generateSlug, Store } from '../utils/db';
 import { auth } from '../utils/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import AlertModal from '../components/ui/AlertModal';
@@ -107,9 +107,11 @@ export default function Login() {
 
       let foundStore = stores.find(
         s => s && (
-          (s.email && s.email.toLowerCase() === trimUser.toLowerCase()) ||
-          (s.ownerName && s.ownerName.toLowerCase() === trimUser.toLowerCase()) ||
-          (s.id && s.id.toLowerCase() === trimUser.toLowerCase())
+          (s.email && s.email.toLowerCase().trim() === trimUser.toLowerCase()) ||
+          (s.ownerName && s.ownerName.toLowerCase().trim() === trimUser.toLowerCase()) ||
+          (s.id && s.id.toLowerCase().trim() === trimUser.toLowerCase()) ||
+          (s.name && s.name.toLowerCase().trim() === trimUser.toLowerCase()) ||
+          (s.name && generateSlug(s.name) === generateSlug(trimUser))
         ) && s.password === trimPass
       );
 
@@ -281,6 +283,10 @@ export default function Login() {
           triggerAlert('Seu cadastro de funcionário está desativado no momento.');
           setIsLoggingIn(false);
           return;
+        }
+
+        if (finalStoreId) {
+          localStorage.setItem('active_store_id', finalStoreId);
         }
 
         setCurrentUser(foundEmployee);
