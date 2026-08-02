@@ -196,11 +196,115 @@ export default function Login() {
         }
       }
 
-      // If we didn't find any match locally, trigger error immediately
+      // If we didn't find any match locally (e.g. new device/mobile phone with empty cache), try direct Firebase Auth login candidates!
       if (!foundStore && !foundEmployee) {
-        triggerAlert('Credenciais incorretas de Usuário ou Senha. Verifique os dados digitados e tente novamente.');
-        setIsLoggingIn(false);
-        return;
+        const candidateEmails: string[] = [];
+        const urlParams = new URLSearchParams(window.location.search || window.location.hash.split('?')[1] || '');
+        const storeParam = urlParams.get('store');
+        const activeId = localStorage.getItem('active_store_id') || 'store_teste_cia';
+
+        if (trimUser.includes('@')) {
+          candidateEmails.push(trimUser);
+        }
+
+        if (storeParam) {
+          candidateEmails.push(getAuthEmail(trimUser, storeParam));
+        }
+        if (targetStoreId) {
+          candidateEmails.push(getAuthEmail(trimUser, targetStoreId));
+        }
+        candidateEmails.push(getAuthEmail(trimUser, activeId));
+        candidateEmails.push(getAuthEmail(trimUser, null));
+        candidateEmails.push(`${generateSlug(trimUser)}@quickserve.com`);
+
+        if (stores && stores.length > 0) {
+          stores.forEach(s => {
+            if (s && s.id) {
+              candidateEmails.push(getAuthEmail(trimUser, s.id));
+            }
+          });
+        }
+
+        const uniqueCandidates = Array.from(new Set(candidateEmails.filter(Boolean)));
+        let authenticatedUserEmail: string | null = null;
+        const authPassword = getAuthPassword(trimPass);
+
+        for (const emailCand of uniqueCandidates) {
+          try {
+            const cred = await signInWithEmailAndPassword(auth, emailCand, authPassword);
+            if (cred && cred.user) {
+              authenticatedUserEmail = cred.user.email;
+              console.log("Fallback Firebase Auth login succeeded with email:", authenticatedUserEmail);
+              break;
+            }
+          } catch (candErr) {
+            // ignore individual candidate failures
+          }
+        }
+
+        if (authenticatedUserEmail) {
+          try {
+            const { collection, getDocs } = await import('firebase/firestore');
+            const { db } = await import('../utils/firebase');
+
+            // Now fetch stores since auth is active!
+            const storesSnap = await getDocs(collection(db, 'stores'));
+            if (!storesSnap.empty) {
+              const fetchedStores: Store[] = [];
+              storesSnap.forEach(d => fetchedStores.push(d.data() as Store));
+              localStorage.setItem('qsp_stores', JSON.stringify(fetchedStores));
+              stores = fetchedStores;
+            }
+
+            let matchedStoreId: string | null = null;
+            if (authenticatedUserEmail.endsWith('@quickserve.com')) {
+              const parts = authenticatedUserEmail.replace('@quickserve.com', '').split('_');
+              if (parts.length >= 2) {
+                const potentialId = parts.slice(1).join('_');
+                const found = stores.find(s => s.id === potentialId || generateSlug(s.name) === potentialId);
+                if (found) matchedStoreId = found.id;
+              }
+            }
+
+            if (!matchedStoreId && storeParam) {
+              const found = stores.find(s => s.id === storeParam || generateSlug(s.name) === generateSlug(storeParam));
+              if (found) matchedStoreId = found.id;
+            }
+
+            if (!matchedStoreId && targetStoreId) {
+              matchedStoreId = targetStoreId;
+            }
+
+            if (!matchedStoreId && stores.length > 0) {
+              matchedStoreId = stores[0].id;
+            }
+
+            if (matchedStoreId) {
+              // Fetch users for this store from Firestore
+              const usersSnap = await getDocs(collection(db, `stores/${matchedStoreId}/users`));
+              if (!usersSnap.empty) {
+                const fetchedUsers: any[] = [];
+                usersSnap.forEach(d => fetchedUsers.push(d.data()));
+                localStorage.setItem(`${matchedStoreId}_qsp_users`, JSON.stringify(fetchedUsers));
+                
+                foundEmployee = fetchedUsers.find(
+                  u => u && u.name && u.name.toLowerCase().trim() === trimUser.toLowerCase() && u.password === trimPass && u.id !== 100
+                );
+              }
+
+              foundStore = stores.find(s => s.id === matchedStoreId && (s.password === trimPass || s.email === authenticatedUserEmail));
+              targetStoreId = matchedStoreId;
+            }
+          } catch (postAuthErr) {
+            console.warn("Error loading Firestore data after fallback auth:", postAuthErr);
+          }
+        }
+
+        if (!foundStore && !foundEmployee) {
+          triggerAlert('Credenciais incorretas de Usuário ou Senha. Verifique os dados digitados e tente novamente.');
+          setIsLoggingIn(false);
+          return;
+        }
       }
 
       // Check if store is suspended
