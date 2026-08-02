@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { User, Lock, Eye, LogIn, Info, Loader2, Building2 } from 'lucide-react';
-import { getStoredUsers, setCurrentUser, getStoredStores, getAuthEmail, registerUserInFirebaseAuth, getAuthPassword, startFirebaseSync, checkAndApplyStoreFromURL, getActiveStoreConfig, getStoreSlug } from '../utils/db';
+import { getStoredUsers, setCurrentUser, getStoredStores, getAuthEmail, registerUserInFirebaseAuth, getAuthPassword, startFirebaseSync, checkAndApplyStoreFromURL, getActiveStoreConfig, getStoreSlug, Store } from '../utils/db';
 import { auth } from '../utils/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import AlertModal from '../components/ui/AlertModal';
@@ -16,11 +16,18 @@ export default function Login() {
   const [alertMessage, setAlertMessage] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
 
+  const [activeStoreConfig, setActiveStoreConfig] = useState<Store | null>(getActiveStoreConfig());
+
   useEffect(() => {
     checkAndApplyStoreFromURL();
-  }, [location.search, location.hash]);
+    setActiveStoreConfig(getActiveStoreConfig());
 
-  const activeStoreConfig = getActiveStoreConfig();
+    const handleDbUpdate = () => {
+      setActiveStoreConfig(getActiveStoreConfig());
+    };
+    window.addEventListener('qsp_database_updated', handleDbUpdate);
+    return () => window.removeEventListener('qsp_database_updated', handleDbUpdate);
+  }, [location.search, location.hash]);
 
   useEffect(() => {
     if (activeStoreConfig && activeStoreConfig.name) {
@@ -78,25 +85,73 @@ export default function Login() {
     setIsLoggingIn(true);
     try {
       // 1. Find matching Store or Employee BEFORE trying Firebase sign-in!
-      // This allows us to know the EXACT correct Firebase email mapping first, preventing wrong registrations.
-      const stores = getStoredStores();
-      const foundStore = stores.find(
-        s => s && s.email && 
-        (s.email.toLowerCase() === trimUser.toLowerCase() || 
-         (s.ownerName && s.ownerName.toLowerCase() === trimUser.toLowerCase())) && 
-        s.password === trimPass
+      let stores = getStoredStores();
+      let targetStoreId = localStorage.getItem('active_store_id');
+
+      // Direct Firestore fallback for store lookup on clean devices / mobile phones
+      if (!stores || stores.length === 0 || !stores.some(s => s.id === targetStoreId)) {
+        try {
+          const { collection, getDocs } = await import('firebase/firestore');
+          const { db } = await import('../utils/firebase');
+          const snap = await getDocs(collection(db, 'stores'));
+          if (!snap.empty) {
+            const fetchedStores: Store[] = [];
+            snap.forEach(d => fetchedStores.push(d.data() as Store));
+            localStorage.setItem('qsp_stores', JSON.stringify(fetchedStores));
+            stores = fetchedStores;
+          }
+        } catch (fetchErr) {
+          console.warn("Direct Firestore store fetch fallback error:", fetchErr);
+        }
+      }
+
+      let foundStore = stores.find(
+        s => s && (
+          (s.email && s.email.toLowerCase() === trimUser.toLowerCase()) ||
+          (s.ownerName && s.ownerName.toLowerCase() === trimUser.toLowerCase()) ||
+          (s.id && s.id.toLowerCase() === trimUser.toLowerCase())
+        ) && s.password === trimPass
       );
 
-      let targetStoreId = localStorage.getItem('active_store_id');
+      // Support generic 'master' / 'admin' username for active store context
+      const currentActive = getActiveStoreConfig();
+      if (!foundStore && currentActive && currentActive.password === trimPass) {
+        const isMasterKeyword = ['master', 'admin', 'gerente', 'proprietario', 'dono'].includes(trimUser.toLowerCase());
+        const isStoreMatch = currentActive.name.toLowerCase().includes(trimUser.toLowerCase()) || currentActive.id.toLowerCase() === trimUser.toLowerCase();
+        if (isMasterKeyword || isStoreMatch) {
+          foundStore = currentActive;
+        }
+      }
+
       let foundEmployee = null;
 
       if (foundStore) {
         targetStoreId = foundStore.id;
       } else {
-        const employees = getStoredUsers();
+        let employees = getStoredUsers();
         foundEmployee = employees.find(
           u => u && u.name.toLowerCase() === trimUser.toLowerCase() && u.password === trimPass && u.id !== 100
         );
+
+        // Fallback direct fetch of store users from Firestore
+        if (!foundEmployee && targetStoreId) {
+          try {
+            const { collection, getDocs } = await import('firebase/firestore');
+            const { db } = await import('../utils/firebase');
+            const snap = await getDocs(collection(db, `stores/${targetStoreId}/users`));
+            if (!snap.empty) {
+              const fetchedUsers: any[] = [];
+              snap.forEach(d => fetchedUsers.push(d.data()));
+              localStorage.setItem(`${targetStoreId}_qsp_users`, JSON.stringify(fetchedUsers));
+              employees = fetchedUsers;
+              foundEmployee = employees.find(
+                u => u && u.name.toLowerCase() === trimUser.toLowerCase() && u.password === trimPass && u.id !== 100
+              );
+            }
+          } catch (userFetchErr) {
+            console.warn("Direct Firestore user fetch error:", userFetchErr);
+          }
+        }
       }
 
       // If we didn't find any match locally, trigger error immediately

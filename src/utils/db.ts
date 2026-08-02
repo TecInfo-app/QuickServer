@@ -735,6 +735,21 @@ export function startFirebaseSync(forceReset = false) {
 
     if (stores.length > 0) {
       localStorage.setItem('qsp_stores', JSON.stringify(stores));
+
+      // Auto-resolve active_store_id if it was set via slug or email in URL on clean devices
+      const currentActive = localStorage.getItem('active_store_id');
+      if (currentActive) {
+        const matched = stores.find(s => 
+          s.id === currentActive || 
+          generateSlug(s.name) === currentActive ||
+          (s.email && s.email.toLowerCase() === currentActive.toLowerCase())
+        );
+        if (matched && matched.id !== currentActive) {
+          console.log(`Auto-resolved active_store_id from '${currentActive}' to '${matched.id}'`);
+          localStorage.setItem('active_store_id', matched.id);
+        }
+      }
+
       window.dispatchEvent(new Event('qsp_database_updated'));
     } else {
       localStorage.setItem('qsp_stores', JSON.stringify([]));

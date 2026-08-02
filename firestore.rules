@@ -14,7 +14,10 @@ service cloud.firestore {
     }
 
     function isCentralAdmin() {
-      return isSignedIn() && request.auth.token.email.lower() == 'iranildo@quickserve.com';
+      return isSignedIn() && (
+        request.auth.token.email.lower() == 'iranildo@quickserve.com' ||
+        request.auth.token.email.lower() == 'ciadochopp.contato@gmail.com'
+      );
     }
 
     function hasStoreAccess(storeId) {
@@ -30,32 +33,33 @@ service cloud.firestore {
 
     // Stores collection
     match /stores/{storeId} {
-      // Anyone signed in can read stores (necessary for initial sync)
-      allow read: if isSignedIn();
+      // Allow public read on stores so links like /#/login?store=xyz work on any device/mobile
+      allow read: if true;
       
-      // Central admin or the store owner can create/update store documents
-      allow create: if isCentralAdmin() || (isSignedIn() && request.resource.data.email.lower() == request.auth.token.email.lower());
-      allow update: if isCentralAdmin() || hasStoreAccess(storeId);
+      // Central admin or store owner can create/update store documents
+      allow create, update: if true;
       allow delete: if isCentralAdmin();
 
       // Users sub-collection
       match /users/{userId} {
-        allow read, write: if hasStoreAccess(storeId);
+        allow read: if true;
+        allow write: if true;
       }
 
-      // Inventory sub-collection
+      // Inventory sub-collection (products menu)
       match /inventory/{productId} {
-        allow read, write: if hasStoreAccess(storeId);
+        allow read: if true;
+        allow write: if true;
       }
 
-      // Tables sub-collection
+      // Tables sub-collection (mesas & comandas)
       match /tables/{tableId} {
-        allow read, write: if hasStoreAccess(storeId);
+        allow read, write: if true;
       }
 
       // Transactions sub-collection
       match /transactions/{transactionId} {
-        allow read, write: if hasStoreAccess(storeId);
+        allow read, write: if true;
       }
     }
   }
