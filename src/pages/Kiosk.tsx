@@ -1234,7 +1234,7 @@ export default function Kiosk() {
                   </div>
                   <div>
                     <p className="font-medium text-xs text-white/80">Meu Carrinho de Pedidos</p>
-                    <p className="font-black text-xl text-white">R$ {totalCartValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                    <p className="font-black text-xl text-white">R$ {totalCartValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                   </div>
                 </div>
 
@@ -1301,7 +1301,7 @@ export default function Kiosk() {
               {/* Order total info during checkout */}
               <div className="p-4 bg-surface-container rounded-2xl flex justify-between items-center text-xs text-on-surface-variant border border-outline-variant/30 font-medium">
                 <span>Contém {totalCartItemsCount} itens no carrinho</span>
-                <span>Total: <strong className="text-sm font-black text-secondary">R$ {totalCartValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></span>
+                <span>Total: <strong className="text-sm font-black text-secondary">R$ {totalCartValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></span>
               </div>
 
               <div className="flex gap-3 pt-2">

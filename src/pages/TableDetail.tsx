@@ -155,21 +155,26 @@ export default function TableDetail() {
   const hasNoServiceTax = table.noServiceTax !== undefined ? table.noServiceTax : isComanda;
 
   // Calculate receipt totals
-  const subtotal = table.items.reduce((sum, item) => {
+  const rawSubtotal = table.items.reduce((sum, item) => {
     const complementsTotal = item.complements?.reduce((cSum, c) => cSum + (c.price || 0), 0) || 0;
     return sum + ((item.price + complementsTotal) * item.qty);
   }, 0);
-  const serviceTax = hasNoServiceTax ? 0 : (subtotal * 0.10);
+  const subtotal = Math.round(rawSubtotal * 100) / 100;
+
+  const rawServiceTax = hasNoServiceTax ? 0 : (subtotal * 0.10);
+  const serviceTax = Math.round(rawServiceTax * 100) / 100;
   
   // Calculate discount
-  let discountAmount = 0;
+  let rawDiscount = 0;
   if (table.discountType === 'percentage' && table.discountValue) {
-    discountAmount = subtotal * (table.discountValue / 100);
+    rawDiscount = subtotal * (table.discountValue / 100);
   } else if (table.discountType === 'fixed' && table.discountValue) {
-    discountAmount = table.discountValue;
+    rawDiscount = table.discountValue;
   }
-  discountAmount = Math.min(discountAmount, subtotal);
-  const grandTotal = Math.max(0, subtotal + serviceTax - discountAmount);
+  rawDiscount = Math.min(rawDiscount, subtotal);
+  const discountAmount = Math.round(rawDiscount * 100) / 100;
+
+  const grandTotal = Math.max(0, Math.round((subtotal + serviceTax - discountAmount) * 100) / 100);
 
   const handlePrint = () => {
     const padRight = (str: string, length: number) => {
@@ -808,7 +813,7 @@ export default function TableDetail() {
           return;
         }
         if (pReceived < grandTotal) {
-          triggerAlert(`O valor recebido de R$ ${pReceived.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} é menor que o valor a pagar de R$ ${grandTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}.`, 'Aviso');
+          triggerAlert(`O valor recebido de R$ ${pReceived.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} é menor que o valor a pagar de R$ ${grandTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`, 'Aviso');
           return;
         }
         parsedCashReceived = pReceived;
@@ -1204,7 +1209,7 @@ export default function TableDetail() {
       <section className="bg-surface-container-lowest rounded-xl p-6 space-y-3 card-shadow border border-surface-variant/20 shadow-sm">
         <div className="flex justify-between items-center text-on-surface-variant">
           <span className="text-body-lg">Subtotal consumido</span>
-          <span className="text-body-lg font-semibold">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+          <span className="text-body-lg font-semibold">R$ {subtotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </div>
         
         <div className="flex justify-between items-center text-on-surface-variant">
@@ -1222,7 +1227,7 @@ export default function TableDetail() {
             </button>
           </div>
           <span className={`text-body-lg font-semibold ${hasNoServiceTax ? 'line-through text-on-surface-variant/40' : ''}`}>
-            R$ {(subtotal * 0.10).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+            R$ {serviceTax.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>
 
@@ -1251,14 +1256,14 @@ export default function TableDetail() {
           </div>
           <span className="text-body-lg font-semibold text-success">
             {discountAmount > 0 
-              ? `- R$ ${discountAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (${table.discountType === 'percentage' ? `${table.discountValue}%` : 'Fixo'})`
+              ? `- R$ ${discountAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (${table.discountType === 'percentage' ? `${table.discountValue}%` : 'Fixo'})`
               : 'R$ 0,00'}
           </span>
         </div>
 
         <div className="receipt-dashed pt-4 flex justify-between items-center mt-2 border-t">
           <span className="text-headline-md text-on-surface font-extrabold text-xl">Total Geral</span>
-          <span className="text-stat-value text-primary font-bold text-2xl">R$ {grandTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+          <span className="text-stat-value text-primary font-bold text-2xl">R$ {grandTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </div>
       </section>
 
@@ -2087,7 +2092,7 @@ export default function TableDetail() {
               <div className="flex justify-between text-body-lg">
                 <span className="text-on-surface-variant">Taxa de serviço (10%):</span>
                 <span className={`font-bold text-on-surface ${hasNoServiceTax ? 'line-through text-on-surface-variant/50' : ''}`}>
-                  R$ {(subtotal * 0.10).toFixed(2)}
+                  R$ {serviceTax.toFixed(2)}
                 </span>
               </div>
               {discountAmount > 0 && (

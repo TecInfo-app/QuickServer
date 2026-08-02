@@ -192,16 +192,16 @@ export default function Reports() {
         <div class="metric-grid">
           <div class="metric-card primary">
             <div class="label">Vendas Brutas</div>
-            <div class="num">R$ ${totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+            <div class="num">R$ ${totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
           </div>
           <div class="metric-card">
             <div class="label">Ticket Médio</div>
-            <div class="num">R$ ${(dateFilteredTransactions.length > 0 ? (totalSales / dateFilteredTransactions.length) : 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+            <div class="num">R$ ${(dateFilteredTransactions.length > 0 ? (totalSales / dateFilteredTransactions.length) : 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
             <div style="font-size: 11px; margin-top: 5px; color: #64748b;">${dateFilteredTransactions.length} Comandas</div>
           </div>
           <div class="metric-card">
             <div class="label">Lucro Líquido</div>
-            <div class="num" style="color: #16a34a;">R$ ${profit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
+            <div class="num" style="color: #16a34a;">R$ ${profit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
             <div style="font-size: 11px; margin-top: 5px; color: #64748b;">Custos: R$ ${totalCost.toFixed(2)}</div>
           </div>
         </div>
@@ -690,13 +690,13 @@ export default function Reports() {
             
             <div className="bg-surface-container-lowest p-5 rounded-[24px] card-shadow border border-surface-variant/20 flex flex-col justify-center">
               <p className="text-caption text-on-surface-variant mb-1">Ticket Médio (Período)</p>
-              <h3 className="text-headline-md text-on-surface font-bold">R$ {dateFilteredTransactions.length > 0 ? (totalSales / dateFilteredTransactions.length).toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '0,00'}</h3>
+              <h3 className="text-headline-md text-on-surface font-bold">R$ {dateFilteredTransactions.length > 0 ? (totalSales / dateFilteredTransactions.length).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'}</h3>
               <p className="text-[10px] text-on-surface-variant uppercase font-bold mt-1 tracking-wider">{dateFilteredTransactions.length} Comandas</p>
             </div>
             
             <div className="bg-surface-container-lowest p-5 rounded-[24px] card-shadow border border-surface-variant/20 flex flex-col justify-center">
               <p className="text-caption text-on-surface-variant mb-1">Lucro Líquido</p>
-              <h3 className="text-headline-md text-success font-bold">R$ {profit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3>
+              <h3 className="text-headline-md text-success font-bold">R$ {profit.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h3>
               <p className="text-[10px] text-on-surface-variant uppercase font-bold mt-1 tracking-wider">Custos: R$ {totalCost.toFixed(2)}</p>
             </div>
           </div>
