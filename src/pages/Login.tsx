@@ -128,28 +128,68 @@ export default function Login() {
       if (foundStore) {
         targetStoreId = foundStore.id;
       } else {
+        // 1. Check current active store users
         let employees = getStoredUsers();
         foundEmployee = employees.find(
-          u => u && u.name.toLowerCase() === trimUser.toLowerCase() && u.password === trimPass && u.id !== 100
+          u => u && u.name && u.name.toLowerCase().trim() === trimUser.toLowerCase() && u.password === trimPass && u.id !== 100
         );
 
-        // Fallback direct fetch of store users from Firestore
-        if (!foundEmployee && targetStoreId) {
+        // 2. If not found in active store, search local cache of all stores
+        if (!foundEmployee && stores && stores.length > 0) {
+          for (const s of stores) {
+            try {
+              const cached = localStorage.getItem(`${s.id}_qsp_users`);
+              if (cached) {
+                const uList = JSON.parse(cached);
+                const match = uList.find(
+                  (u: any) => u && u.name && u.name.toLowerCase().trim() === trimUser.toLowerCase() && u.password === trimPass && u.id !== 100
+                );
+                if (match) {
+                  foundEmployee = match;
+                  targetStoreId = s.id;
+                  break;
+                }
+              }
+            } catch (e) {
+              // ignore parsing errors
+            }
+          }
+        }
+
+        // 3. Fallback: Search Firestore across all stores for matching employee username & password
+        if (!foundEmployee && stores && stores.length > 0) {
           try {
             const { collection, getDocs } = await import('firebase/firestore');
             const { db } = await import('../utils/firebase');
-            const snap = await getDocs(collection(db, `stores/${targetStoreId}/users`));
-            if (!snap.empty) {
-              const fetchedUsers: any[] = [];
-              snap.forEach(d => fetchedUsers.push(d.data()));
-              localStorage.setItem(`${targetStoreId}_qsp_users`, JSON.stringify(fetchedUsers));
-              employees = fetchedUsers;
-              foundEmployee = employees.find(
-                u => u && u.name.toLowerCase() === trimUser.toLowerCase() && u.password === trimPass && u.id !== 100
-              );
+            
+            // Re-order stores to check targetStoreId first if present
+            const storesToCheck = targetStoreId 
+              ? [stores.find(s => s.id === targetStoreId), ...stores.filter(s => s?.id !== targetStoreId)].filter(Boolean) as Store[]
+              : stores;
+
+            for (const s of storesToCheck) {
+              if (!s || !s.id) continue;
+              try {
+                const snap = await getDocs(collection(db, `stores/${s.id}/users`));
+                if (!snap.empty) {
+                  const fetchedUsers: any[] = [];
+                  snap.forEach(d => fetchedUsers.push(d.data()));
+                  localStorage.setItem(`${s.id}_qsp_users`, JSON.stringify(fetchedUsers));
+                  const match = fetchedUsers.find(
+                    u => u && u.name && u.name.toLowerCase().trim() === trimUser.toLowerCase() && u.password === trimPass && u.id !== 100
+                  );
+                  if (match) {
+                    foundEmployee = match;
+                    targetStoreId = s.id;
+                    break;
+                  }
+                }
+              } catch (userFetchErr) {
+                console.warn(`Direct Firestore user fetch error for store ${s.id}:`, userFetchErr);
+              }
             }
-          } catch (userFetchErr) {
-            console.warn("Direct Firestore user fetch error:", userFetchErr);
+          } catch (globalUserFetchErr) {
+            console.warn("Direct Firestore user fetch error:", globalUserFetchErr);
           }
         }
       }

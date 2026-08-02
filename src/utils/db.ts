@@ -757,7 +757,7 @@ export function startFirebaseSync(forceReset = false) {
     }
     isSyncingFromFirestore = false;
   }, (err) => {
-    console.error('Firestore sync error for stores:', err);
+    console.warn('Firestore sync notice for stores (falling back to local cache):', err?.message || err);
   });
   unsubscribers.push(unsubStores);
 
@@ -794,7 +794,7 @@ export function startFirebaseSync(forceReset = false) {
     window.dispatchEvent(new Event('qsp_database_updated'));
     isSyncingFromFirestore = false;
   }, (err) => {
-    console.error('Firestore sync error for users:', err);
+    console.warn('Firestore sync notice for users (falling back to local cache):', err?.message || err);
   });
   unsubscribers.push(unsubUsers);
 
@@ -821,7 +821,7 @@ export function startFirebaseSync(forceReset = false) {
     window.dispatchEvent(new Event('qsp_database_updated'));
     isSyncingFromFirestore = false;
   }, (err) => {
-    console.error('Firestore sync error for inventory:', err);
+    console.warn('Firestore sync notice for inventory (falling back to local cache):', err?.message || err);
   });
   unsubscribers.push(unsubInventory);
 
@@ -849,7 +849,7 @@ export function startFirebaseSync(forceReset = false) {
     window.dispatchEvent(new Event('qsp_database_updated'));
     isSyncingFromFirestore = false;
   }, (err) => {
-    console.error('Firestore sync error for tables:', err);
+    console.warn('Firestore sync notice for tables (falling back to local cache):', err?.message || err);
   });
   unsubscribers.push(unsubTables);
 
@@ -877,7 +877,7 @@ export function startFirebaseSync(forceReset = false) {
     window.dispatchEvent(new Event('qsp_database_updated'));
     isSyncingFromFirestore = false;
   }, (err) => {
-    console.error('Firestore sync error for transactions:', err);
+    console.warn('Firestore sync notice for transactions (falling back to local cache):', err?.message || err);
   });
   unsubscribers.push(unsubTransactions);
 }
