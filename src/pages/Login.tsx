@@ -1,19 +1,34 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { User, Lock, Eye, LogIn, Info, Loader2 } from 'lucide-react';
-import { getStoredUsers, setCurrentUser, getStoredStores, getAuthEmail, registerUserInFirebaseAuth, getAuthPassword, startFirebaseSync } from '../utils/db';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { User, Lock, Eye, LogIn, Info, Loader2, Building2 } from 'lucide-react';
+import { getStoredUsers, setCurrentUser, getStoredStores, getAuthEmail, registerUserInFirebaseAuth, getAuthPassword, startFirebaseSync, checkAndApplyStoreFromURL, getActiveStoreConfig, getStoreSlug } from '../utils/db';
 import { auth } from '../utils/firebase';
 import { signInWithEmailAndPassword } from 'firebase/auth';
 import AlertModal from '../components/ui/AlertModal';
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [showPassword, setShowPassword] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
   const [alertMessage, setAlertMessage] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  useEffect(() => {
+    checkAndApplyStoreFromURL();
+  }, [location.search, location.hash]);
+
+  const activeStoreConfig = getActiveStoreConfig();
+
+  useEffect(() => {
+    if (activeStoreConfig && activeStoreConfig.name) {
+      document.title = `${activeStoreConfig.name} - Login`;
+    } else {
+      document.title = 'QuickServe POS - Login';
+    }
+  }, [activeStoreConfig]);
 
   const triggerAlert = (msg: string) => {
     setAlertMessage(msg);
@@ -162,7 +177,10 @@ export default function Login() {
 
         setCurrentUser(defaultStoreAdmin);
         startFirebaseSync(true);
-        navigate('/dashboard');
+        const currentActiveStore = getActiveStoreConfig();
+        const storeSlug = currentActiveStore ? getStoreSlug(currentActiveStore) : '';
+        const storeQuery = storeSlug ? `?store=${storeSlug}` : '';
+        navigate(`/dashboard${storeQuery}`);
       } else if (foundEmployee) {
         if (!foundEmployee.active) {
           triggerAlert('Seu cadastro de funcionário está desativado no momento.');
@@ -172,10 +190,13 @@ export default function Login() {
 
         setCurrentUser(foundEmployee);
         startFirebaseSync(true);
+        const currentActiveStore = getActiveStoreConfig();
+        const storeSlug = currentActiveStore ? getStoreSlug(currentActiveStore) : '';
+        const storeQuery = storeSlug ? `?store=${storeSlug}` : '';
         if (foundEmployee.role === 'Vendedor') {
-          navigate('/tables');
+          navigate(`/tables${storeQuery}`);
         } else {
-          navigate('/dashboard');
+          navigate(`/dashboard${storeQuery}`);
         }
       }
     } catch (e: any) {
@@ -207,6 +228,23 @@ export default function Login() {
 
         {/* Login Card */}
         <div className="bg-surface-container-lowest rounded-[24px] p-8 login-card border border-surface-container-high">
+          {activeStoreConfig && (
+            <div className="bg-primary/10 border border-primary/20 p-3.5 rounded-2xl flex items-center justify-between gap-3 mb-6">
+              <div className="flex items-center gap-2.5 text-primary font-bold">
+                <Building2 size={20} className="shrink-0" />
+                <div>
+                  <p className="text-[10px] text-on-surface-variant font-medium uppercase tracking-wider">Acessando Estabelecimento:</p>
+                  <p className="font-extrabold text-body-medium text-on-surface">{activeStoreConfig.name}</p>
+                </div>
+              </div>
+              {activeStoreConfig.email && (
+                <span className="text-[10px] bg-primary text-on-primary font-bold px-2 py-0.5 rounded-md truncate max-w-[130px]" title={`E-mail Principal: ${activeStoreConfig.email}`}>
+                  {activeStoreConfig.email}
+                </span>
+              )}
+            </div>
+          )}
+
           <header className="mb-8">
             <h2 className="text-headline-md text-on-surface">Bem-vindo de volta</h2>
             <p className="text-body-lg text-on-surface-variant mt-1">

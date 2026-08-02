@@ -102,14 +102,15 @@ export default function CentralAdmin() {
     setNewStore(prev => ({ ...prev, password: pass }));
   };
 
-  // Create store slug
+  // Create clean store slug
   const generateSlug = (name: string) => {
-    return 'store_' + name
+    return name
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '') // remove accents
       .replace(/[^a-z0-9]/g, '_')
       .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '')
       .trim();
   };
 
@@ -121,8 +122,14 @@ export default function CentralAdmin() {
       return;
     }
 
-    const storeId = generateSlug(newStore.name) + '_' + Date.now();
     const existing = getStoredStores();
+    const baseSlug = generateSlug(newStore.name) || 'loja';
+    let storeId = baseSlug;
+    let counter = 1;
+    while (existing.some(s => s.id === storeId)) {
+      counter++;
+      storeId = `${baseSlug}_${counter}`;
+    }
 
     // Check email uniqueness across stores
     const emailConflict = existing.some(s => s.email.toLowerCase() === newStore.email.toLowerCase());
@@ -281,9 +288,14 @@ export default function CentralAdmin() {
     (store.email || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const getStoreLink = (storeId: string) => {
+  const getStoreSlug = (store: Store) => {
+    return generateSlug(store.name) || store.id;
+  };
+
+  const getStoreLink = (store: Store, page: 'login' | 'kiosk' = 'login') => {
     const baseUrl = window.location.origin + window.location.pathname;
-    return `${baseUrl}#/login?store=${storeId}`;
+    const slug = getStoreSlug(store);
+    return `${baseUrl}#/${page}?store=${slug}`;
   };
 
   return (
@@ -437,30 +449,58 @@ export default function CentralAdmin() {
                     </td>
 
                     <td className="py-5 px-6">
-                      <div className="flex flex-col gap-1 max-w-[220px]">
-                        <span className="font-mono text-[10px] text-secondary bg-secondary-container/10 border border-secondary/20 px-2 py-1 rounded select-all break-all block overflow-hidden text-ellipsis whitespace-nowrap" title={getStoreLink(store.id)}>
-                          {getStoreLink(store.id)}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            navigator.clipboard.writeText(getStoreLink(store.id));
-                            triggerAlert('Copiado!', 'Link único da loja copiado para a área de transferência com sucesso!');
-                          }}
-                          className="text-[10px] font-bold text-primary hover:underline flex items-center gap-1 self-start cursor-pointer"
-                        >
-                          <Copy size={12} /> Copiar Link
-                        </button>
+                      <div className="flex flex-col gap-2 max-w-[240px]">
+                        <div>
+                          <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">Link Painel / Login:</p>
+                          <div className="flex items-center gap-1">
+                            <span className="font-mono text-[10px] text-secondary bg-secondary-container/10 border border-secondary/20 px-2 py-0.5 rounded select-all break-all block overflow-hidden text-ellipsis whitespace-nowrap flex-1" title={getStoreLink(store, 'login')}>
+                              {getStoreLink(store, 'login')}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(getStoreLink(store, 'login'));
+                                triggerAlert('Copiado!', `Link do Painel da loja "${store.name}" copiado com sucesso!`);
+                              }}
+                              className="p-1 text-primary hover:bg-primary/10 rounded transition-all cursor-pointer shrink-0"
+                              title="Copiar Link Painel"
+                            >
+                              <Copy size={12} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {store.services?.kiosk && (
+                          <div>
+                            <p className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider mb-0.5">Link Totem Autoatendimento:</p>
+                            <div className="flex items-center gap-1">
+                              <span className="font-mono text-[10px] text-primary bg-primary-container/10 border border-primary/20 px-2 py-0.5 rounded select-all break-all block overflow-hidden text-ellipsis whitespace-nowrap flex-1" title={getStoreLink(store, 'kiosk')}>
+                                {getStoreLink(store, 'kiosk')}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(getStoreLink(store, 'kiosk'));
+                                  triggerAlert('Copiado!', `Link do Totem da loja "${store.name}" copiado com sucesso!`);
+                                }}
+                                className="p-1 text-primary hover:bg-primary/10 rounded transition-all cursor-pointer shrink-0"
+                                title="Copiar Link Totem"
+                              >
+                                <Copy size={12} />
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </td>
 
                     <td className="py-5 px-6">
                       <div className="space-y-1 font-mono text-[11px]">
                         <p className="text-on-surface-variant">
-                          Reg.: <span className="text-on-surface font-semibold bg-surface-alt/70 px-2 py-0.5 rounded">{store.email}</span>
+                          E-mail Principal: <span className="text-on-surface font-bold bg-surface-alt/70 px-2 py-0.5 rounded block mt-0.5 select-all">{store.email}</span>
                         </p>
-                        <div className="flex items-center gap-1.5 text-on-surface-variant">
-                          <span>Senha:</span>
+                        <div className="flex items-center gap-1.5 text-on-surface-variant pt-1">
+                          <span>Senha Master:</span>
                           <span className="text-on-surface font-bold bg-surface-alt/70 px-1.5 py-0.5 rounded">
                             {visiblePasswords[store.id] ? store.password : '••••'}
                           </span>

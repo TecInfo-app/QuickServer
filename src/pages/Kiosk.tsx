@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ShoppingCart, Smartphone, Check, ChevronRight, Search, Plus, Minus, FileText, ArrowLeft, Send, CheckCircle2, Flame, Loader2, Utensils, AlertCircle } from 'lucide-react';
-import { getStoredInventory, getStoredTables, saveTables, Product, Table, getActiveStoreConfig, getPrefixedKey, getAbacatePayConfig } from '../utils/db';
+import { getStoredInventory, getStoredTables, saveTables, Product, Table, getActiveStoreConfig, getPrefixedKey, getAbacatePayConfig, checkAndApplyStoreFromURL } from '../utils/db';
 import { printOrderTicket } from '../utils/printer';
 import AlertModal from '../components/ui/AlertModal';
 
@@ -49,7 +49,20 @@ export default function Kiosk() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  useEffect(() => {
+    checkAndApplyStoreFromURL();
+  }, [location.search, location.hash]);
+
   const storeConfig = getActiveStoreConfig();
+
+  useEffect(() => {
+    if (storeConfig && storeConfig.name) {
+      document.title = `${storeConfig.name} - Totem Autoatendimento`;
+    } else {
+      document.title = 'Totem Autoatendimento - QuickServe';
+    }
+  }, [storeConfig]);
+
   const isKioskEnabled = storeConfig ? storeConfig.services.kiosk : true;
 
   if (!isKioskEnabled) {

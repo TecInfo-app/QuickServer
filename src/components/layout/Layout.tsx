@@ -1,9 +1,9 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import React, { useEffect, useState } from 'react';
-import { Menu, LogOut, MonitorSmartphone, UtensilsCrossed, PackageSearch, BarChart3, Settings, ExternalLink } from 'lucide-react';
+import { Menu, LogOut, MonitorSmartphone, UtensilsCrossed, PackageSearch, BarChart3, Settings, ExternalLink, Building2 } from 'lucide-react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { getCurrentUser, getActiveStoreConfig } from '../../utils/db';
+import { getCurrentUser, getActiveStoreConfig, checkAndApplyStoreFromURL, getStoreSlug } from '../../utils/db';
 import CaixaOverlay from '../caixa/CaixaOverlay';
 import { getActiveCaixa } from '../../utils/caixa';
 
@@ -17,8 +17,24 @@ export default function Layout() {
   const user = getCurrentUser();
   const [isCaixaOpen, setIsCaixaOpen] = useState(!!getActiveCaixa());
 
+  useEffect(() => {
+    checkAndApplyStoreFromURL();
+  }, [location.search, location.hash]);
+
+  const storeConfig = getActiveStoreConfig();
+  const currentStoreSlug = storeConfig ? getStoreSlug(storeConfig) : '';
+
+  useEffect(() => {
+    if (storeConfig && storeConfig.name) {
+      document.title = `${storeConfig.name} - QuickServe POS`;
+    } else {
+      document.title = 'QuickServe POS';
+    }
+  }, [storeConfig]);
+
   const handleLogout = () => {
-    navigate('/login');
+    const logoutTarget = currentStoreSlug ? `/login?store=${currentStoreSlug}` : '/login';
+    navigate(logoutTarget);
   };
 
   const navItems = [
@@ -30,7 +46,10 @@ export default function Layout() {
     { name: 'Administração', path: '/admin', icon: Settings },
   ];
 
-  const storeConfig = getActiveStoreConfig();
+  const getNavPath = (basePath: string) => {
+    return currentStoreSlug ? `${basePath}?store=${currentStoreSlug}` : basePath;
+  };
+
   const isKioskServiceEnabled = storeConfig ? storeConfig.services?.kiosk !== false : true;
 
   const filteredNavItems = navItems.filter(item => {
@@ -84,9 +103,17 @@ export default function Layout() {
           <button className="p-2 hover:bg-surface-variant transition-colors duration-200 active:scale-95 text-primary">
             <Menu size={24} />
           </button>
-          <h1 className="text-headline-lg-mobile md:text-headline-lg font-bold text-primary">
-            QuickServe POS
-          </h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-headline-lg-mobile md:text-headline-lg font-bold text-primary">
+              QuickServe POS
+            </h1>
+            {storeConfig?.name && (
+              <div className="hidden sm:flex items-center gap-1.5 bg-brand-primary/10 border border-brand-primary/20 px-3 py-1 rounded-xl text-caption font-extrabold text-brand-primary">
+                <Building2 size={16} />
+                <span className="truncate max-w-[200px]">{storeConfig.name}</span>
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-4">
           {user?.name?.includes('Central Admin') && (
@@ -118,10 +145,16 @@ export default function Layout() {
       {/* Sidebar Navigation (Desktop) - Simulated for Admin/Inventory based on HTML */}
       <aside className="hidden md:flex fixed left-0 top-16 bottom-0 w-64 bg-surface dark:bg-surface-container flex-col py-4 shadow-xl z-40">
         <div className="px-6 mb-8 flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full bg-secondary text-white flex items-center justify-center font-bold text-lg">{initials}</div>
-          <div>
-            <p className="font-bold text-on-surface">{user?.name || 'Admin'}</p>
+          <div className="w-12 h-12 rounded-full bg-secondary text-white flex items-center justify-center font-bold text-lg shrink-0">{initials}</div>
+          <div className="overflow-hidden">
+            <p className="font-bold text-on-surface truncate">{user?.name || 'Admin'}</p>
             <p className="text-[12px] text-on-surface-variant">{user?.role || 'Gerente'} • {user?.meta || 'Turno Ativo'}</p>
+            {storeConfig?.name && (
+              <div className="flex items-center gap-1.5 text-caption font-bold text-primary mt-1">
+                <Building2 size={14} className="shrink-0" />
+                <span className="truncate max-w-[150px]">{storeConfig.name}</span>
+              </div>
+            )}
           </div>
         </div>
         <nav className="flex-1 space-y-1">
@@ -129,10 +162,11 @@ export default function Layout() {
             const isActive = location.pathname.startsWith(item.path);
             const Icon = item.icon;
             const targetProp = (item as any).target;
+            const targetPath = getNavPath(item.path);
             return (
               <Link
                 key={item.path}
-                to={item.path}
+                to={targetPath}
                 target={targetProp}
                 rel={targetProp === '_blank' ? 'noopener noreferrer' : undefined}
                 className={cn(
@@ -170,10 +204,11 @@ export default function Layout() {
           const isActive = location.pathname.startsWith(item.path);
           const Icon = item.icon;
           const targetProp = (item as any).target;
+          const targetPath = getNavPath(item.path);
           return (
             <Link
               key={item.path}
-              to={item.path}
+              to={targetPath}
               target={targetProp}
               rel={targetProp === '_blank' ? 'noopener noreferrer' : undefined}
               className={cn(

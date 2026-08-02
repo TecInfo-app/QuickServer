@@ -61,27 +61,54 @@ export async function registerUserInFirebaseAuth(email: string, password: string
 let isSyncingFromFirestore = false;
 let hasStartedSync = false;
 
+export function generateSlug(name: string): string {
+  if (!name) return '';
+  return name
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .trim();
+}
+
+export function getStoreSlug(store: Store | null): string {
+  if (!store) return '';
+  return generateSlug(store.name) || store.id;
+}
+
 export function checkAndApplyStoreFromURL() {
-  let storeId: string | null = null;
+  let storeParam: string | null = null;
   
   // 1. Parse window.location.search (?store=xyz)
   const mainParams = new URLSearchParams(window.location.search);
-  storeId = mainParams.get('store');
+  storeParam = mainParams.get('store');
   
   // 2. Parse hash-based parameters (?store=xyz inside hash)
-  if (!storeId) {
+  if (!storeParam) {
     const hash = window.location.hash;
     const questionMarkIndex = hash.indexOf('?');
     if (questionMarkIndex !== -1) {
       const hashParams = new URLSearchParams(hash.substring(questionMarkIndex));
-      storeId = hashParams.get('store');
+      storeParam = hashParams.get('store');
     }
   }
 
-  if (storeId) {
+  if (storeParam) {
+    const stores = getStoredStores();
+    const matched = stores.find(s => 
+      s.id === storeParam || 
+      generateSlug(s.name) === storeParam ||
+      s.id.toLowerCase().includes(storeParam.toLowerCase()) ||
+      (s.email && s.email.toLowerCase() === storeParam.toLowerCase())
+    );
+
+    const targetId = matched ? matched.id : storeParam;
+
     const currentActive = localStorage.getItem('active_store_id');
-    if (currentActive !== storeId) {
-      localStorage.setItem('active_store_id', storeId);
+    if (currentActive !== targetId) {
+      localStorage.setItem('active_store_id', targetId);
       // Clean up previous user so they log in with the new store
       localStorage.removeItem('qsp_current_user');
       startFirebaseSync(true);
